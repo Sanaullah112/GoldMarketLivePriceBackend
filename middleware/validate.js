@@ -15,25 +15,41 @@ export const handleValidationErrors = (req, res, next) => {
 };
 
 export const validateLogin = [
-  body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
+  // Allow login with either email or mobile number
+  body().custom((_, { req }) => {
+    const identifier = req.body.number || req.body.email || req.body.phone || req.body.mobile;
+    if (!identifier) throw new Error('Email or mobile number is required');
+    // If it's numeric-ish treat as phone, otherwise validate email format
+    const digitsOnly = String(identifier).replace(/\D/g, '');
+    if (digitsOnly.length >= 7) {
+      // basic phone check (allow +92 or 0 local formats)
+      const phoneRe = /^(\+92|0)?[0-9]{10,12}$/;
+      if (!phoneRe.test(String(identifier))) throw new Error('Valid mobile number is required');
+    } else {
+      // validate email
+      const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRe.test(String(identifier))) throw new Error('Valid email is required');
+    }
+    return true;
+  }),
   body('password').notEmpty().withMessage('Password is required'),
   handleValidationErrors,
 ];
 
 export const validateRegister = [
   body('name').trim().notEmpty().isLength({ min: 2, max: 100 }).withMessage('Name must be 2-100 characters'),
-  body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
   body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
   body('phoneNumber').matches(/^(\+92|0)[0-9]{10}$/).withMessage('Valid Pakistani phone number required'),
+  body('email').optional().isEmail().withMessage('Valid email address'),
   handleValidationErrors,
 ];
 
 export const validateCreateAdmin = [
   body('name').trim().notEmpty().isLength({ min: 2, max: 100 }).withMessage('Name is required'),
-  body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
+  body('phoneNumber').matches(/^(\+92|0)[0-9]{10}$/).withMessage('Valid Pakistani phone number required'),
   body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
   body('shopName').trim().notEmpty().isLength({ min: 2, max: 200 }).withMessage('Shop name is required'),
-  body('phoneNumber').optional().matches(/^(\+92|0)[0-9]{10}$/).withMessage('Valid Pakistani phone number required'),
+  // phoneNumber required above
   handleValidationErrors,
 ];
 

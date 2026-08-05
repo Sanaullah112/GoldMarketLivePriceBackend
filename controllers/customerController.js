@@ -50,21 +50,36 @@ function buildQuantityDisplay(tola, masha, ratti, grams) {
 // ── REGISTRATION ──────────────────────────────────────────
 export const register = async (req, res) => {
   try {
-    const { name, email, password, phoneNumber, whatsappNumber, address, city } = req.body;
+    const { name, password, phoneNumber, whatsappNumber, address, city, email } = req.body;
 
-    const emailLower = email.toLowerCase().trim();
-    const [existingCustomer, existingAdmin, existingSuperAdmin] = await Promise.all([
-      Customer.findOne({ email: emailLower }),
-      Admin.findOne({ email: emailLower }),
-      SuperAdmin.findOne({ email: emailLower }),
-    ]);
+    const phone = (phoneNumber || '').toString().trim();
+    const emailLower = (email || '').toString().trim().toLowerCase() || null;
+    if (!phone) return res.status(400).json({ message: 'Phone number is required.' });
+
+    let existingCustomer = null, existingAdmin = null, existingSuperAdmin = null;
+    if (emailLower) {
+      [existingCustomer, existingAdmin, existingSuperAdmin] = await Promise.all([
+        Customer.findOne({ $or: [{ phoneNumber: phone }, { email: emailLower }] }),
+        Admin.findOne({ $or: [{ phoneNumber: phone }, { email: emailLower }] }),
+        SuperAdmin.findOne({ $or: [{ phoneNumber: phone }, { email: emailLower }] }),
+      ]);
+    } else {
+      [existingCustomer, existingAdmin, existingSuperAdmin] = await Promise.all([
+        Customer.findOne({ phoneNumber: phone }),
+        Admin.findOne({ phoneNumber: phone }),
+        SuperAdmin.findOne({ phoneNumber: phone }),
+      ]);
+    }
     if (existingCustomer || existingAdmin || existingSuperAdmin) {
-      return res.status(400).json({ message: 'An account with this email already exists.' });
+      return res.status(400).json({ message: 'An account with this phone number or email already exists.' });
     }
 
     const customer = await Customer.create({
-      name, email: emailLower, password, phoneNumber,
-      whatsappNumber: whatsappNumber || phoneNumber,
+      name,
+      password,
+      phoneNumber: phone,
+      email: emailLower,
+      whatsappNumber: whatsappNumber || phone,
       address: address || null,
       city:    city    || null,
     });
@@ -74,9 +89,9 @@ export const register = async (req, res) => {
       const notifs = admins.map((a) => ({
         userId: a._id, userModel: 'Admin',
         title:   'New Customer Registered',
-        message: `${name} (${phoneNumber}) from ${city || 'Unknown city'} has registered.`,
+        message: `${name} (${phone}) from ${city || 'Unknown city'} has registered.`,
         type: 'customer_registration',
-        data: { customerId: customer._id, customerName: name, email, phone: phoneNumber, city, address },
+        data: { customerId: customer._id, customerName: name, phone: phone, city, address },
       }));
       if (notifs.length) await Notification.insertMany(notifs);
 
@@ -84,7 +99,7 @@ export const register = async (req, res) => {
       const saNotifs = superAdmins.map((sa) => ({
         userId: sa._id, userModel: 'SuperAdmin',
         title:   'New Customer Registered',
-        message: `${name} registered from ${city || 'Unknown city'}. Email: ${email}, Phone: ${phoneNumber}`,
+        message: `${name} registered from ${city || 'Unknown city'}. Phone: ${phone}`,
         type: 'customer_registration',
         data: { customerId: customer._id },
       }));
@@ -96,7 +111,7 @@ export const register = async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Registration successful! You can now log in.',
-      customer: { id: customer._id, name: customer.name, email: customer.email },
+      customer: { id: customer._id, name: customer.name, phoneNumber: customer.phoneNumber },
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -808,7 +823,7 @@ export const getWhatsAppContact = async (req, res) => {
 export const registerWithShop = async (req, res) => {
   try {
     const { shopId } = req.params;
-    const { name, phoneNumber, whatsappNumber, email, address, city, policyAgreed } = req.body;
+    const { name, phoneNumber, whatsappNumber, address, city, policyAgreed } = req.body;
 
     if (!policyAgreed) {
       return res.status(400).json({ message: 'You must agree to the price policy.' });
@@ -875,7 +890,7 @@ export const registerWithShop = async (req, res) => {
       shopId,
       shopModel,
       name: displayName,
-      email: email || req.user.email,
+      email: null,
       phoneNumber: phoneNumber || req.user.phoneNumber || '',
       whatsappNumber: whatsappNumber || req.user.whatsappNumber || phoneNumber || req.user.phoneNumber || '',
       address: address || req.user.address || null,

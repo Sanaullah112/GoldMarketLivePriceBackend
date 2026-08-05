@@ -12,18 +12,21 @@ const createSuperAdmin = async () => {
   try {
     await connectDB();
 
-    const email = process.env.SA_EMAIL || 'superadmin@goldking.pk';
+    const number = process.env.SA_NUMBER || process.env.SA_PHONE || null;
+    const email = process.env.SA_EMAIL || null;
 
-    const existing = await SuperAdmin.findOne({ email });
+    let existing = null;
+    if (number) existing = await SuperAdmin.findOne({ phoneNumber: number });
+    if (!existing && email) existing = await SuperAdmin.findOne({ email });
     if (existing) {
-      console.log('✅ Super Admin already exists:', existing.email);
+      console.log('✅ Super Admin already exists:', existing.phoneNumber || existing.email);
       process.exit(0);
     }
 
     const sa = await SuperAdmin.create({
       // ── Identity ────────────────────────────────────────────────────────────
       name:     process.env.SA_NAME     || 'Super Admin',
-      email,
+      email: email || undefined,
       password: process.env.SA_PASSWORD || 'SuperAdmin@123!',
 
       // ── Shop identity ────────────────────────────────────────────────────────
@@ -34,8 +37,8 @@ const createSuperAdmin = async () => {
       shopLogoPublicId:   null,
 
       // ── Contact & location ───────────────────────────────────────────────────
-      phoneNumber:    process.env.SA_PHONE     || null,
-      whatsappNumber: process.env.SA_WHATSAPP  || null,
+      phoneNumber:    number || process.env.SA_PHONE || null,
+      whatsappNumber: process.env.SA_WHATSAPP  || number || null,
       address:        process.env.SA_ADDRESS   || null,
       city:           process.env.SA_CITY      || null,
 
@@ -86,7 +89,7 @@ const createSuperAdmin = async () => {
     console.log('\n✅ Super Admin created successfully!');
     console.log('─────────────────────────────────────');
     console.log(`  Name      : ${sa.name}`);
-    console.log(`  Email     : ${sa.email}`);
+    console.log(`  Number    : ${sa.phoneNumber || '—'}`);
     console.log(`  Password  : ${process.env.SA_PASSWORD || 'SuperAdmin@123!'}`);
     console.log(`  Shop Name : ${sa.shopName}`);
     console.log(`  Active    : ${sa.isActive}`);

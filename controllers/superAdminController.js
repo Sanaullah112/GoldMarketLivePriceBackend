@@ -2075,22 +2075,27 @@ export const flagCustomerForSA = async (req, res) => {
 // ── ADMIN MANAGEMENT ───────────────────────────────────────────────────────────
 export const createAdmin = async (req, res) => {
   try {
-    const { name, email, password, shopName, phoneNumber, whatsappNumber, address, city } = req.body;
-   const emailLower = email.toLowerCase().trim();
-const [existsInAdmin, existsInSuperAdmin, existsInCustomer] = await Promise.all([
-  Admin.findOne({ email: emailLower }),
-  SuperAdmin.findOne({ email: emailLower }),
-  Customer.findOne({ email: emailLower }),
-]);
-if (existsInAdmin || existsInSuperAdmin || existsInCustomer) {
-  return res.status(400).json({ message: 'An account with this email already exists.' });
-}
-   const admin = await Admin.create({
-  name, email: emailLower, password, shopName,
-      phoneNumber:    phoneNumber    || null,
-      whatsappNumber: whatsappNumber || phoneNumber || null,
-      address:        address        || null,
-      city:           city           || null,
+    const { name, password, shopName, phoneNumber, whatsappNumber, address, city } = req.body;
+
+    // ensure phone number is unique across Admin, SuperAdmin, Customer
+    const phone = String(phoneNumber || '').trim();
+    const [existsInAdmin, existsInSuperAdmin, existsInCustomer] = await Promise.all([
+      Admin.findOne({ phoneNumber: phone }),
+      SuperAdmin.findOne({ phoneNumber: phone }),
+      Customer.findOne({ phoneNumber: phone }),
+    ]);
+    if (existsInAdmin || existsInSuperAdmin || existsInCustomer) {
+      return res.status(400).json({ message: 'An account with this phone number already exists.' });
+    }
+
+    const admin = await Admin.create({
+      name,
+      password,
+      shopName,
+      phoneNumber:    phone || null,
+      whatsappNumber: whatsappNumber || phone || null,
+      address:        address || null,
+      city:           city || null,
       createdBy:      req.user.id,
     });
 
@@ -2098,7 +2103,7 @@ if (existsInAdmin || existsInSuperAdmin || existsInCustomer) {
       success: true,
       message: 'Shop admin created successfully.',
       admin: {
-        id: admin._id, name: admin.name, email: admin.email,
+        id: admin._id, name: admin.name,
         shopName: admin.shopName, phoneNumber: admin.phoneNumber, isActive: admin.isActive,
       },
     });
@@ -2109,10 +2114,10 @@ if (existsInAdmin || existsInSuperAdmin || existsInCustomer) {
 
 export const getAllAdmins = async (req, res) => {
   try {
-    const admins = await Admin.find()
-      .select('-password')
-      .populate('createdBy', 'name email')
-      .sort({ createdAt: -1 });
+      const admins = await Admin.find()
+        .select('-password')
+        .populate('createdBy', 'name phoneNumber')
+        .sort({ createdAt: -1 });
     res.status(200).json({ success: true, count: admins.length, admins });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });

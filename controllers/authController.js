@@ -14,14 +14,19 @@ const generateToken = (id, role) => {
   return jwt.sign({ id, role }, process.env.JWT_SECRET, { expiresIn: '30d' });
 };
 
-const findUserByEmail = async (email) => {
-  let user = await SuperAdmin.findOne({ email });
+const findUserByIdentifier = async (identifier) => {
+  if (!identifier) return null;
+  // Try to match by email first, then by phoneNumber (mobile). Support different field names.
+  const byEmail = { email: identifier };
+  const byPhone = { phoneNumber: identifier };
+
+  let user = await SuperAdmin.findOne(byEmail) || await SuperAdmin.findOne(byPhone);
   if (user) return { user, role: 'super_admin' };
 
-  user = await Admin.findOne({ email });
+  user = await Admin.findOne(byEmail) || await Admin.findOne(byPhone);
   if (user) return { user, role: 'admin' };
 
-  user = await Customer.findOne({ email });
+  user = await Customer.findOne(byEmail) || await Customer.findOne(byPhone);
   if (user) return { user, role: 'customer' };
 
   return null;
@@ -55,10 +60,11 @@ transporter.verify((err, success) => {
 
 export const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
-    const userData = await findUserByEmail(email);
+    const identifier = req.body.number || req.body.email || req.body.phone || req.body.mobile;
+    const password = req.body.password;
+    const userData = await findUserByIdentifier(identifier);
 
-    if (!userData) return res.status(401).json({ message: 'Invalid email or password' });
+    if (!userData) return res.status(401).json({ message: 'Invalid credentials' });
 
     const { user, role } = userData;
 
@@ -75,7 +81,7 @@ export const login = async (req, res) => {
     }
 
     const isMatch = await user.comparePassword(password);
-    if (!isMatch) return res.status(401).json({ message: 'Invalid email or password' });
+    if (!isMatch) return res.status(401).json({ message: 'Invalid credentials' });
 
     const token = generateToken(user._id, role);
 

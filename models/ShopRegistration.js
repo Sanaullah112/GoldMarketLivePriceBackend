@@ -19,7 +19,7 @@ const shopRegistrationSchema = new mongoose.Schema({
   },
   // Customer details at time of registration (snapshot)
   name: { type: String, required: true, trim: true },
-  email: { type: String, required: true, lowercase: true, trim: true },
+  email: { type: String, required: false, lowercase: true, trim: true, default: null },
   phoneNumber: { type: String, required: true },
   whatsappNumber: { type: String, default: null },
   address: { type: String, default: null },

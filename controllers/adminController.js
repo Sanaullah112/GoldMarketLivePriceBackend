@@ -645,23 +645,25 @@ export const deleteCustomer = async (req, res) => {
 export const addCustomer = async (req, res) => {
   try {
     const adminId = req.user.id;
-    const { name, email, phoneNumber, whatsappNumber, address, city, password, isTrusted } = req.body;
+    const { name, phoneNumber, whatsappNumber, address, city, password, isTrusted } = req.body;
 
     // Validate required fields
-    if (!name || !email || !phoneNumber || !password) {
-      return res.status(400).json({ message: 'Name, email, phone number, and password are required' });
+    if (!name || !phoneNumber || !password) {
+      return res.status(400).json({ message: 'Name, phone number, and password are required' });
     }
 
-    // Check if email already exists
-    const existingCustomer = await Customer.findOne({ email: email.toLowerCase() });
+    // Check if phone number already exists
+    const existingCustomer = await Customer.findOne({ phoneNumber: phoneNumber.trim() });
     if (existingCustomer) {
-      return res.status(400).json({ message: 'Email already registered' });
+      return res.status(400).json({ message: 'Phone number already registered' });
     }
 
     // Create new customer
+    const emailToUse = req.body.email?.trim()?.toLowerCase() || `no-email+${Date.now()}@${adminId}.local`;
+
     const newCustomer = await Customer.create({
       name: name.trim(),
-      email: email.toLowerCase().trim(),
+      email: emailToUse,
       phoneNumber: phoneNumber.trim(),
       whatsappNumber: whatsappNumber?.trim() || null,
       address: address?.trim() || null,
@@ -702,7 +704,6 @@ export const addCustomer = async (req, res) => {
       customer: {
         _id: newCustomer._id,
         name: newCustomer.name,
-        email: newCustomer.email,
         phoneNumber: newCustomer.phoneNumber,
         whatsappNumber: newCustomer.whatsappNumber,
         address: newCustomer.address,
@@ -734,7 +735,7 @@ export const getOrders = async (req, res) => {
     const skip = (Number(page) - 1) * Number(limit);
     const [orders, total] = await Promise.all([
       Order.find(query)
-        .populate('customerId', 'name email phoneNumber whatsappNumber shopRelations')
+        .populate('customerId', 'name phoneNumber whatsappNumber shopRelations')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(Number(limit)),
