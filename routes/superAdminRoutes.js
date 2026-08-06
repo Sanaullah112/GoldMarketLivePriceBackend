@@ -64,7 +64,7 @@ router.get(
   getLivePriceStream
 );
 
-router.use(protect);
+router.use(protect); 
 
 // ── Dashboard ─────────────────────────────────────
 router.get('/dashboard', adminOrSuperAdmin, getDashboard);

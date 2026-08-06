@@ -619,7 +619,7 @@ export const getAllPrices = async (req, res) => {
 
 // ── CURRENCY UPDATE ───────────────────────────────────────────────────────────
 export const updateCurrency = async (req, res) => {
-  try {
+  try { 
     const { currency } = req.params;
     const { difference, buy_difference } = req.body;
 
