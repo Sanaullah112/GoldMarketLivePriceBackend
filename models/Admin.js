@@ -6,26 +6,27 @@ import bcrypt from 'bcryptjs';
 
 const adminSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
-  email: { type: String, required: false, unique: false, lowercase: true, trim: true, default: null },
+  // email: { type: String, required: false, unique: false, lowercase: true, trim: true, default: null },
   password: { type: String, required: true, minlength: 8 },
   shopName: { type: String, required: true, trim: true },
   shopLogo: { type: String, default: null },
   shopLogoPublicId: { type: String, default: null },
-  phoneNumber: { type: String, default: null },
-  whatsappNumber: { type: String, default: null },
+  phoneNumber: { type: String, required: true ,default: null },
+  whatsappNumber: { type: String, default: null }, 
   address: { type: String, default: null },
   city: { type: String, default: null },
   isActive: { type: Boolean, default: true },
+  tolaWeight: { type: Number, enum: [11.664, 12.150], default: 11.664 },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'SuperAdmin', required: true },
 
   // ── Sell price differences (customer buys from shop) ──────────────────────
-  diff_24k:    { type: Number, default: 0 },
-  diff_2385k:  { type: Number, default: 0 },
+  diff_24k: { type: Number, default: 0 },
+  diff_2385k: { type: Number, default: 0 },
   diff_silver: { type: Number, default: 0 },
 
   // ── Buy price differences (customer sells to shop) ────────────────────────
-  buy_diff_24k:    { type: Number, default: 0 },
-  buy_diff_2385k:  { type: Number, default: 0 },
+  buy_diff_24k: { type: Number, default: 0 },
+  buy_diff_2385k: { type: Number, default: 0 },
   buy_diff_silver: { type: Number, default: 0 },
 
   // ── Currency adjustments (admin adds on top of SA rate) ───────────────────
@@ -49,14 +50,14 @@ const adminSchema = new mongoose.Schema({
   },
 
   // ── Analytics counters ────────────────────────────────────────────────────
-  totalSales:     { type: Number, default: 0 },
+  totalSales: { type: Number, default: 0 },
   totalPurchases: { type: Number, default: 0 },
-  salesCount:     { type: Number, default: 0 },
+  salesCount: { type: Number, default: 0 },
   purchasesCount: { type: Number, default: 0 },
 
   // ── Password reset ────────────────────────────────────────────────────────
-  resetPasswordToken:   { type: String, default: undefined },
-  resetPasswordExpires: { type: Date,   default: undefined },
+  resetPasswordToken: { type: String, default: undefined },
+  resetPasswordExpires: { type: Date, default: undefined },
 }, { timestamps: true });
 
 adminSchema.pre('save', async function (next) {

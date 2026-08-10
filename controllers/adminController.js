@@ -234,21 +234,33 @@ export const updatePriceDifference = async (req, res) => {
   }
 };
 
-// ── SHOP SETTINGS ─────────────────────────────────────────
 export const updateShopSettings = async (req, res) => {
   try {
-    const { shopName, phoneNumber, whatsappNumber, address, city } = req.body;
+    const { name, shopName, phoneNumber, whatsappNumber, address, city, removeLogo } = req.body;
     const admin = await Admin.findById(req.user.id);
+    if (!admin) return res.status(404).json({ message: 'Admin not found.' });
 
-    if (shopName)       admin.shopName       = shopName;
-    if (phoneNumber)    admin.phoneNumber    = phoneNumber;
-    if (whatsappNumber) admin.whatsappNumber = whatsappNumber;
-    if (address)        admin.address        = address;
-    if (city)           admin.city           = city;
+    if (name !== undefined) admin.name = name.trim();
+    if (shopName !== undefined) admin.shopName = shopName.trim();
+    if (phoneNumber !== undefined) admin.phoneNumber = phoneNumber.trim();
+    if (whatsappNumber !== undefined) admin.whatsappNumber = whatsappNumber.trim();
+    if (address !== undefined) admin.address = address.trim();
+    if (city !== undefined) admin.city = city.trim();
 
-    if (req.file) {
-      if (admin.shopLogoPublicId) await cloudinaryDeleteImage(admin.shopLogoPublicId);
-      admin.shopLogo         = req.file.path;
+    // Handle logo removal
+    if (removeLogo === 'true') {
+      if (admin.shopLogoPublicId) {
+        await cloudinaryDeleteImage(admin.shopLogoPublicId);
+      }
+      admin.shopLogo = null;
+      admin.shopLogoPublicId = null;
+    }
+    // Handle logo upload
+    else if (req.file) {
+      if (admin.shopLogoPublicId) {
+        await cloudinaryDeleteImage(admin.shopLogoPublicId);
+      }
+      admin.shopLogo = req.file.path;
       admin.shopLogoPublicId = req.file.filename;
     }
 
@@ -263,6 +275,7 @@ export const updateShopSettings = async (req, res) => {
         address:     admin.address,
         city:        admin.city,
       },
+      user: admin
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });

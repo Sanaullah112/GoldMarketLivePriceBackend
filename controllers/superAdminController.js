@@ -1,14 +1,14 @@
 // controllers/superAdminController.js
-import SuperAdmin    from '../models/SuperAdmin.js';
-import Admin         from '../models/Admin.js';
-import Customer      from '../models/Customer.js';
-import Order         from '../models/Order.js';
-import Price         from '../models/Price.js';
-import Currency      from '../models/Currency.js';
-import Picture       from '../models/Picture.js';
-import Notification  from '../models/Notification.js';
+import SuperAdmin from '../models/SuperAdmin.js';
+import Admin from '../models/Admin.js';
+import Customer from '../models/Customer.js';
+import Order from '../models/Order.js';
+import Price from '../models/Price.js';
+import Currency from '../models/Currency.js';
+import Picture from '../models/Picture.js';
+import Notification from '../models/Notification.js';
 import ShopRegistration from '../models/ShopRegistration.js';
-import mongoose      from 'mongoose';
+import mongoose from 'mongoose';
 import { cloudinaryDeleteImage } from '../middleware/upload.js';
 import {
   calculatePricePerTola,
@@ -19,9 +19,9 @@ import {
   fetchDollarRatePKR,
   fetchRiyalRatePKR,
   fetchDirhamRatePKR,
-  fetchCHFRatePKR, 
+  fetchCHFRatePKR,
 } from '../utils/goldPriceCalculator.js';
-import { generateWhatsAppLink } from '../utils/whatsapp.js';  
+import { generateWhatsAppLink } from '../utils/whatsapp.js';
 
 // ─── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -30,8 +30,8 @@ const round2 = (n) => Math.round(n * 100) / 100;
 async function latestSilverDiffs() {
   const doc = await Price.findOne({ type: 'silver' }).sort({ createdAt: -1 }).lean();
   return {
-    sellDiff: doc?.diff_silver      ?? 0,
-    buyDiff:  doc?.buy_diff_silver  ?? 0,
+    sellDiff: doc?.diff_silver ?? 0,
+    buyDiff: doc?.buy_diff_silver ?? 0,
   };
 }
 
@@ -51,8 +51,8 @@ function buildOrderMessage(order, shopName, customerName, status, reason = '') {
     if (order.quantityDisplay) return order.quantityDisplay;
 
     // Otherwise, manually build from stored numbers
-    const tola  = Number(order.quantityInTola) || 0;
-    const gram  = Number(order.quantityInGram) || 0;
+    const tola = Number(order.quantityInTola) || 0;
+    const gram = Number(order.quantityInGram) || 0;
     return `${tola.toFixed(2)} Tola (${gram.toFixed(2)} g)`;
   }
 
@@ -60,8 +60,8 @@ function buildOrderMessage(order, shopName, customerName, status, reason = '') {
 
   // Map emoji and title based on status
   const emojiMap = {
-    approved:  { icon: '✅', title: 'Order Approved' },
-    rejected:  { icon: '❌', title: 'Order Update' },
+    approved: { icon: '✅', title: 'Order Approved' },
+    rejected: { icon: '❌', title: 'Order Update' },
     cancelled: { icon: '❌', title: 'Order Cancelled' },
     completed: { icon: '✅', title: 'Transaction Complete' },
   };
@@ -129,7 +129,7 @@ export const getDashboard = async (req, res) => {
       // Admin users - get the first active Super Admin
       sa = await SuperAdmin.findOne({ isActive: true });
     }
-    
+
     if (!sa) {
       return res.status(404).json({
         success: false,
@@ -143,7 +143,7 @@ export const getDashboard = async (req, res) => {
     const silverBuyDiff = latestSilver?.buy_diff_silver ?? 0;
 
     const basePKR_gold = livePrices.gold.pricePerTolaPKR;
-    const base2385 = livePrices.gold.price2385PerTolaPKR ?? 
+    const base2385 = livePrices.gold.price2385PerTolaPKR ??
       Math.round(basePKR_gold * (23.85 / 24) * 100) / 100;
     const basePKR_silver = livePrices.silver.pricePerTolaPKR;
 
@@ -306,9 +306,9 @@ export const updatePriceDifference = async (req, res) => {
     const { diff_24k, diff_2385k, buy_diff_24k, buy_diff_2385k } = req.body;
 
     if (
-      diff_24k       === undefined &&
-      diff_2385k     === undefined &&
-      buy_diff_24k   === undefined &&
+      diff_24k === undefined &&
+      diff_2385k === undefined &&
+      buy_diff_24k === undefined &&
       buy_diff_2385k === undefined
     ) {
       return res.status(400).json({ message: 'At least one price difference field must be provided.' });
@@ -317,55 +317,55 @@ export const updatePriceDifference = async (req, res) => {
     const sa = await SuperAdmin.findById(req.user.id);
     if (!sa) return res.status(404).json({ message: 'Super admin not found.' });
 
-    if (diff_24k       !== undefined) sa.diff_24k       = Number(diff_24k);
-    if (diff_2385k     !== undefined) sa.diff_2385k     = Number(diff_2385k);
-    if (buy_diff_24k   !== undefined) sa.buy_diff_24k   = Number(buy_diff_24k);
+    if (diff_24k !== undefined) sa.diff_24k = Number(diff_24k);
+    if (diff_2385k !== undefined) sa.diff_2385k = Number(diff_2385k);
+    if (buy_diff_24k !== undefined) sa.buy_diff_24k = Number(buy_diff_24k);
     if (buy_diff_2385k !== undefined) sa.buy_diff_2385k = Number(buy_diff_2385k);
     await sa.save();
 
     const [goldUSD, dollarPKR] = await Promise.all([fetchGoldPriceUSD(), fetchDollarRatePKR()]);
-    const basePKR  = calculatePricePerTola(goldUSD, dollarPKR);
+    const basePKR = calculatePricePerTola(goldUSD, dollarPKR);
     const base2385 = round2(basePKR * (23.85 / 24));
 
-    const adjSell_24k    = applyPriceDifference(basePKR,  sa.diff_24k       ?? 0);
-    const adjSell_2385k  = applyPriceDifference(base2385, sa.diff_2385k     ?? 0);
-    const adjBuy_24k     = applyPriceDifference(basePKR,  sa.buy_diff_24k   ?? 0);
-    const adjBuy_2385k   = applyPriceDifference(base2385, sa.buy_diff_2385k ?? 0);
+    const adjSell_24k = applyPriceDifference(basePKR, sa.diff_24k ?? 0);
+    const adjSell_2385k = applyPriceDifference(base2385, sa.diff_2385k ?? 0);
+    const adjBuy_24k = applyPriceDifference(basePKR, sa.buy_diff_24k ?? 0);
+    const adjBuy_2385k = applyPriceDifference(base2385, sa.buy_diff_2385k ?? 0);
 
     await Price.create({
-      type:                   'gold',
-      originalPriceUSD:       goldUSD,
-      dollarRatePKR:          dollarPKR,
-      basePricePerTolaPKR:    basePKR,
-      diff_24k:               sa.diff_24k       ?? 0,
-      diff_2385k:             sa.diff_2385k     ?? 0,
-      buy_diff_24k:           sa.buy_diff_24k   ?? 0,
-      buy_diff_2385k:         sa.buy_diff_2385k ?? 0,
-      adjustedPrice_24k:      adjSell_24k,
-      adjustedPrice_2385k:    adjSell_2385k,
-      adjustedBuyPrice_24k:   adjBuy_24k,
+      type: 'gold',
+      originalPriceUSD: goldUSD,
+      dollarRatePKR: dollarPKR,
+      basePricePerTolaPKR: basePKR,
+      diff_24k: sa.diff_24k ?? 0,
+      diff_2385k: sa.diff_2385k ?? 0,
+      buy_diff_24k: sa.buy_diff_24k ?? 0,
+      buy_diff_2385k: sa.buy_diff_2385k ?? 0,
+      adjustedPrice_24k: adjSell_24k,
+      adjustedPrice_2385k: adjSell_2385k,
+      adjustedBuyPrice_24k: adjBuy_24k,
       adjustedBuyPrice_2385k: adjBuy_2385k,
-      lastUpdatedBy:          req.user.id,
+      lastUpdatedBy: req.user.id,
     });
 
     const isBuySide = buy_diff_24k !== undefined || buy_diff_2385k !== undefined;
     const notifTitle = isBuySide ? 'Gold Buy Price Updated' : 'Gold Sell Price Updated';
-    const notifMsg   = isBuySide
+    const notifMsg = isBuySide
       ? `Gold buy price updated. 24K buy: PKR ${adjBuy_24k.toLocaleString()}/tola`
       : `Gold sell price updated. 24K sell: PKR ${adjSell_24k.toLocaleString()}/tola`;
 
     const admins = await Admin.find({ isActive: true });
     if (admins.length) {
       await Notification.insertMany(admins.map((a) => ({
-        userId:    a._id,
+        userId: a._id,
         userModel: 'Admin',
-        title:     notifTitle,
-        message:   notifMsg,
-        type:      'price_update',
+        title: notifTitle,
+        message: notifMsg,
+        type: 'price_update',
         data: {
-          diff_24k:       sa.diff_24k       ?? 0,
-          diff_2385k:     sa.diff_2385k     ?? 0,
-          buy_diff_24k:   sa.buy_diff_24k   ?? 0,
+          diff_24k: sa.diff_24k ?? 0,
+          diff_2385k: sa.diff_2385k ?? 0,
+          buy_diff_24k: sa.buy_diff_24k ?? 0,
           buy_diff_2385k: sa.buy_diff_2385k ?? 0,
         },
       })));
@@ -375,14 +375,14 @@ export const updatePriceDifference = async (req, res) => {
       success: true,
       message: `Gold ${isBuySide ? 'buy' : 'sell'} prices updated.`,
       data: {
-        diff_24k:               sa.diff_24k       ?? 0,
-        diff_2385k:             sa.diff_2385k     ?? 0,
-        buy_diff_24k:           sa.buy_diff_24k   ?? 0,
-        buy_diff_2385k:         sa.buy_diff_2385k ?? 0,
-        basePricePerTolaPKR:    basePKR,
-        adjustedPrice_24k:      adjSell_24k,
-        adjustedPrice_2385k:    adjSell_2385k,
-        adjustedBuyPrice_24k:   adjBuy_24k,
+        diff_24k: sa.diff_24k ?? 0,
+        diff_2385k: sa.diff_2385k ?? 0,
+        buy_diff_24k: sa.buy_diff_24k ?? 0,
+        buy_diff_2385k: sa.buy_diff_2385k ?? 0,
+        basePricePerTolaPKR: basePKR,
+        adjustedPrice_24k: adjSell_24k,
+        adjustedPrice_2385k: adjSell_2385k,
+        adjustedBuyPrice_24k: adjBuy_24k,
         adjustedBuyPrice_2385k: adjBuy_2385k,
       },
     });
@@ -396,71 +396,71 @@ export const updatePriceDifference = async (req, res) => {
 export const updateSilverPriceDifference = async (req, res) => {
   try {
     const { diff_silver, buy_diff_silver } = req.body;
- 
+
     if (diff_silver === undefined && buy_diff_silver === undefined) {
       return res.status(400).json({ message: 'diff_silver or buy_diff_silver must be provided.' });
     }
- 
+
     // ── 1. Load the SuperAdmin and update the fields on the document ─────────
     const sa = await SuperAdmin.findById(req.user.id);
     if (!sa) return res.status(404).json({ message: 'Super admin not found.' });
- 
-    if (diff_silver     !== undefined) sa.diff_silver     = Number(diff_silver);
+
+    if (diff_silver !== undefined) sa.diff_silver = Number(diff_silver);
     if (buy_diff_silver !== undefined) sa.buy_diff_silver = Number(buy_diff_silver);
     await sa.save();  // ← this is the missing line that caused the bug
- 
+
     // ── 2. Fetch live silver price ────────────────────────────────────────────
     const [silverUSD, dollarPKR] = await Promise.all([
       fetchSilverPriceUSD(),
       fetchDollarRatePKR(),
     ]);
     const basePKR = calculatePricePerTola(silverUSD, dollarPKR);
- 
+
     const sellDiff = sa.diff_silver;
-    const buyDiff  = sa.buy_diff_silver;
- 
+    const buyDiff = sa.buy_diff_silver;
+
     const adjSell = applyPriceDifference(basePKR, sellDiff);
-    const adjBuy  = applyPriceDifference(basePKR, buyDiff);
- 
+    const adjBuy = applyPriceDifference(basePKR, buyDiff);
+
     // ── 3. Write Price history record ─────────────────────────────────────────
     await Price.create({
-      type:                    'silver',
-      originalPriceUSD:        silverUSD,
-      dollarRatePKR:           dollarPKR,
-      basePricePerTolaPKR:     basePKR,
-      diff_silver:             sellDiff,
-      buy_diff_silver:         buyDiff,
-      adjustedPrice_silver:    adjSell,
+      type: 'silver',
+      originalPriceUSD: silverUSD,
+      dollarRatePKR: dollarPKR,
+      basePricePerTolaPKR: basePKR,
+      diff_silver: sellDiff,
+      buy_diff_silver: buyDiff,
+      adjustedPrice_silver: adjSell,
       adjustedBuyPrice_silver: adjBuy,
-      lastUpdatedBy:           req.user.id,
+      lastUpdatedBy: req.user.id,
     });
- 
+
     // ── 4. Notify admins ──────────────────────────────────────────────────────
     const isBuySide = buy_diff_silver !== undefined;
-    const notifMsg  = isBuySide
+    const notifMsg = isBuySide
       ? `Silver 999 buy price updated. Buy price: PKR ${adjBuy.toLocaleString()}/tola`
       : `Silver 999 sell price updated. Sell price: PKR ${adjSell.toLocaleString()}/tola`;
- 
+
     const admins = await Admin.find({ isActive: true });
     if (admins.length) {
       await Notification.insertMany(admins.map((a) => ({
-        userId:    a._id,
+        userId: a._id,
         userModel: 'Admin',
-        title:     'Silver Price Updated',
-        message:   notifMsg,
-        type:      'price_update',
-        data:      { diff_silver: sellDiff, buy_diff_silver: buyDiff },
+        title: 'Silver Price Updated',
+        message: notifMsg,
+        type: 'price_update',
+        data: { diff_silver: sellDiff, buy_diff_silver: buyDiff },
       })));
     }
- 
+
     res.status(200).json({
       success: true,
       message: `Silver 999 ${isBuySide ? 'buy' : 'sell'} price updated.`,
       data: {
-        diff_silver:             sellDiff,
-        buy_diff_silver:         buyDiff,
-        basePricePerTolaPKR:     basePKR,
-        adjustedPrice_silver:    adjSell,
+        diff_silver: sellDiff,
+        buy_diff_silver: buyDiff,
+        basePricePerTolaPKR: basePKR,
+        adjustedPrice_silver: adjSell,
         adjustedBuyPrice_silver: adjBuy,
       },
     });
@@ -476,9 +476,9 @@ export const updateSilverPriceDifference = async (req, res) => {
 
 // ── LIVE PRICE STREAM (SSE) ───────────────────────────────────────────────────
 export const getLivePriceStream = async (req, res) => {
-  res.setHeader('Content-Type',                'text/event-stream');
-  res.setHeader('Cache-Control',               'no-cache');
-  res.setHeader('Connection',                  'keep-alive');
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
   res.setHeader('Access-Control-Allow-Origin', process.env.FRONTEND_URL || '*');
   res.flushHeaders();
 
@@ -499,19 +499,19 @@ export const getLivePriceStream = async (req, res) => {
         Price.findOne({ type: 'silver' }).sort({ createdAt: -1 }).lean(),
       ]);
 
-      const basePKR_gold   = livePrices.gold.pricePerTolaPKR;
-      const base2385       = livePrices.gold.price2385PerTolaPKR ??
+      const basePKR_gold = livePrices.gold.pricePerTolaPKR;
+      const base2385 = livePrices.gold.price2385PerTolaPKR ??
         Math.round(basePKR_gold * (23.85 / 24) * 100) / 100;
       const basePKR_silver = livePrices.silver.pricePerTolaPKR;
 
-      const silverSellDiff = latestSilverDoc?.diff_silver     ?? 0;
-      const silverBuyDiff  = latestSilverDoc?.buy_diff_silver ?? 0;
+      const silverSellDiff = latestSilverDoc?.diff_silver ?? 0;
+      const silverBuyDiff = latestSilverDoc?.buy_diff_silver ?? 0;
 
       // Build adjusted currency rates with SA's diffs
       const adjustedCurrencies = {};
       for (const [code, data] of Object.entries(livePrices.currencies)) {
-        const sellDiff = sa.currencyDiff?.[code]    ?? 0;
-        const buyDiff  = sa.currencyBuyDiff?.[code] ?? 0;
+        const sellDiff = sa.currencyDiff?.[code] ?? 0;
+        const buyDiff = sa.currencyBuyDiff?.[code] ?? 0;
         adjustedCurrencies[code] = {
           ...data,
           rate: data.rate,                    // Live rate
@@ -594,7 +594,7 @@ export const getAllPrices = async (req, res) => {
     const currencyDiffs = {};
     ['USD', 'SAR', 'AED', 'EUR', 'GBP', 'CHF'].forEach((code) => {
       currencyDiffs[code] = {
-        difference:     sa?.currencyDiff?.[code]    ?? 0,
+        difference: sa?.currencyDiff?.[code] ?? 0,
         buy_difference: sa?.currencyBuyDiff?.[code] ?? 0,
       };
     });
@@ -603,8 +603,8 @@ export const getAllPrices = async (req, res) => {
       success: true,
       live: livePrices,
       adjusted: {
-        gold:       latestGold   ?? null,
-        silver:     latestSilver ?? null,
+        gold: latestGold ?? null,
+        silver: latestSilver ?? null,
         currencies: currencyDiffs,
       },
     });
@@ -619,16 +619,16 @@ export const getAllPrices = async (req, res) => {
 
 // ── CURRENCY UPDATE ───────────────────────────────────────────────────────────
 export const updateCurrency = async (req, res) => {
-  try { 
+  try {
     const { currency } = req.params;
     const { difference, buy_difference } = req.body;
 
-   
+
     const validCurrencies = ['USD', 'SAR', 'AED', 'EUR', 'GBP', 'CHF'];
     if (!validCurrencies.includes(currency)) {
       return res.status(400).json({ message: `Invalid currency. Use: ${validCurrencies.join(', ')}` });
     }
-    if (difference     !== undefined && isNaN(Number(difference))) {
+    if (difference !== undefined && isNaN(Number(difference))) {
       return res.status(400).json({ message: 'difference must be a number.' });
     }
     if (buy_difference !== undefined && isNaN(Number(buy_difference))) {
@@ -642,7 +642,7 @@ export const updateCurrency = async (req, res) => {
     const sa = await SuperAdmin.findById(req.user.id);
     if (!sa) return res.status(404).json({ message: 'Super admin not found.' });
 
-    if (difference     !== undefined) sa.currencyDiff[currency]    = Number(difference);
+    if (difference !== undefined) sa.currencyDiff[currency] = Number(difference);
     if (buy_difference !== undefined) sa.currencyBuyDiff[currency] = Number(buy_difference);
 
     sa.markModified('currencyDiff');
@@ -657,17 +657,17 @@ export const updateCurrency = async (req, res) => {
       liveRate = await fetchRiyalRatePKR();
     } else if (currency === 'AED') {
       liveRate = await fetchDirhamRatePKR();
-   } else {
+    } else {
       const { fetchEurRatePKR, fetchGBPRatePKR, fetchCHFRatePKR } = await import('../utils/goldPriceCalculator.js');
-      if (currency === 'EUR')      liveRate = await fetchEurRatePKR();
+      if (currency === 'EUR') liveRate = await fetchEurRatePKR();
       else if (currency === 'CHF') liveRate = await fetchCHFRatePKR();
-      else                         liveRate = await fetchGBPRatePKR();
+      else liveRate = await fetchGBPRatePKR();
     }
 
-    const sellDiff     = sa.currencyDiff[currency]    ?? 0;
-    const buyDiff      = sa.currencyBuyDiff[currency] ?? 0;
+    const sellDiff = sa.currencyDiff[currency] ?? 0;
+    const buyDiff = sa.currencyBuyDiff[currency] ?? 0;
     const adjustedRate = round2(liveRate + sellDiff);
-    const buyRate      = round2(liveRate + buyDiff);
+    const buyRate = round2(liveRate + buyDiff);
 
     res.status(200).json({
       success: true,
@@ -684,18 +684,18 @@ export const updateCurrency = async (req, res) => {
 export const getAnalytics = async (req, res) => {
   try {
     const now = new Date();
-    
+
     // ── Time boundaries ───────────────────────────────────────────────────────
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    
+
     const startOfWeek = new Date(startOfToday);
     startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay()); // Sunday
-    
+
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    
+
     const sixMonthsAgo = new Date(now);
     sixMonthsAgo.setMonth(now.getMonth() - 6);
-    
+
     // ── User counts ──────────────────────────────────────────────────────────
     const [
       totalAdmins,
@@ -708,7 +708,7 @@ export const getAnalytics = async (req, res) => {
       Customer.countDocuments(),
       Customer.countDocuments({ status: 'approved' }),
     ]);
-    
+
     // ── Order counts (all-time) ──────────────────────────────────────────────
     const [
       totalOrders,
@@ -727,7 +727,7 @@ export const getAnalytics = async (req, res) => {
       Order.countDocuments({ status: 'approved' }),
       Order.countDocuments({ status: 'rejected' }),
     ]);
-    
+
     // ── Daily counts ─────────────────────────────────────────────────────────
     const [
       dailyCompleted,
@@ -738,13 +738,13 @@ export const getAnalytics = async (req, res) => {
       dailyProcessing,
     ] = await Promise.all([
       Order.countDocuments({ status: 'completed', createdAt: { $gte: startOfToday } }),
-      Order.countDocuments({ status: 'pending',   createdAt: { $gte: startOfToday } }),
-      Order.countDocuments({ status: 'approved',  createdAt: { $gte: startOfToday } }),
+      Order.countDocuments({ status: 'pending', createdAt: { $gte: startOfToday } }),
+      Order.countDocuments({ status: 'approved', createdAt: { $gte: startOfToday } }),
       Order.countDocuments({ status: 'cancelled', createdAt: { $gte: startOfToday } }),
-      Order.countDocuments({ status: 'rejected',  createdAt: { $gte: startOfToday } }),
+      Order.countDocuments({ status: 'rejected', createdAt: { $gte: startOfToday } }),
       Order.countDocuments({ status: 'processing', createdAt: { $gte: startOfToday } }),
     ]);
-    
+
     // ── Weekly counts ────────────────────────────────────────────────────────
     const [
       weeklyCompleted,
@@ -755,13 +755,13 @@ export const getAnalytics = async (req, res) => {
       weeklyProcessing,
     ] = await Promise.all([
       Order.countDocuments({ status: 'completed', createdAt: { $gte: startOfWeek } }),
-      Order.countDocuments({ status: 'pending',   createdAt: { $gte: startOfWeek } }),
-      Order.countDocuments({ status: 'approved',  createdAt: { $gte: startOfWeek } }),
+      Order.countDocuments({ status: 'pending', createdAt: { $gte: startOfWeek } }),
+      Order.countDocuments({ status: 'approved', createdAt: { $gte: startOfWeek } }),
       Order.countDocuments({ status: 'cancelled', createdAt: { $gte: startOfWeek } }),
-      Order.countDocuments({ status: 'rejected',  createdAt: { $gte: startOfWeek } }),
+      Order.countDocuments({ status: 'rejected', createdAt: { $gte: startOfWeek } }),
       Order.countDocuments({ status: 'processing', createdAt: { $gte: startOfWeek } }),
     ]);
-    
+
     // ── Monthly counts ───────────────────────────────────────────────────────
     const [
       monthlyCompleted,
@@ -772,13 +772,13 @@ export const getAnalytics = async (req, res) => {
       monthlyProcessing,
     ] = await Promise.all([
       Order.countDocuments({ status: 'completed', createdAt: { $gte: startOfMonth } }),
-      Order.countDocuments({ status: 'pending',   createdAt: { $gte: startOfMonth } }),
-      Order.countDocuments({ status: 'approved',  createdAt: { $gte: startOfMonth } }),
+      Order.countDocuments({ status: 'pending', createdAt: { $gte: startOfMonth } }),
+      Order.countDocuments({ status: 'approved', createdAt: { $gte: startOfMonth } }),
       Order.countDocuments({ status: 'cancelled', createdAt: { $gte: startOfMonth } }),
-      Order.countDocuments({ status: 'rejected',  createdAt: { $gte: startOfMonth } }),
+      Order.countDocuments({ status: 'rejected', createdAt: { $gte: startOfMonth } }),
       Order.countDocuments({ status: 'processing', createdAt: { $gte: startOfMonth } }),
     ]);
-    
+
     // ── Revenue aggregations (completed orders only) ─────────────────────────
     const revenueAgg = async (dateFilter = {}) => {
       const match = { status: 'completed', ...dateFilter };
@@ -812,14 +812,14 @@ export const getAnalytics = async (req, res) => {
       ]);
       return result[0] ?? { total: 0, count: 0, buyRev: 0, sellRev: 0 };
     };
-    
+
     const [totalRevAgg, dailyRevAgg, weeklyRevAgg, monthlyRevAgg] = await Promise.all([
       revenueAgg(),
       revenueAgg({ createdAt: { $gte: startOfToday } }),
       revenueAgg({ createdAt: { $gte: startOfWeek } }),
       revenueAgg({ createdAt: { $gte: startOfMonth } }),
     ]);
-    
+
     // ── Monthly trend (last 6 months, completed orders only) ─────────────────
     const monthlyTrend = await Order.aggregate([
       {
@@ -837,7 +837,7 @@ export const getAnalytics = async (req, res) => {
       },
       { $sort: { '_id.year': 1, '_id.month': 1 } },
     ]);
-    
+
     // ── Order trend (all statuses) for volume chart ──────────────────────────
     const orderTrend = await Order.aggregate([
       { $match: { createdAt: { $gte: sixMonthsAgo } } },
@@ -855,7 +855,7 @@ export const getAnalytics = async (req, res) => {
       },
       { $sort: { '_id.year': 1, '_id.month': 1 } },
     ]);
-    
+
     // ── Metal type breakdown (completed orders only) ─────────────────────────
     const metalBreakdown = await Order.aggregate([
       { $match: { status: 'completed' } },
@@ -867,17 +867,17 @@ export const getAnalytics = async (req, res) => {
         },
       },
     ]);
-    
+
     // ── Shop performance ─────────────────────────────────────────────────────
     const shopPerformance = await Admin.find()
       .select('shopName totalSales totalPurchases salesCount purchasesCount isActive')
       .lean();
-    
+
     // Add SuperAdmin as a "shop" for performance tracking
     const sa = await SuperAdmin.findById(req.user.id)
       .select('shopName totalSales totalPurchases salesCount purchasesCount isActive')
       .lean();
-    
+
     if (sa) {
       shopPerformance.push({
         _id: sa._id,
@@ -889,22 +889,22 @@ export const getAnalytics = async (req, res) => {
         isActive: true,
       });
     }
-    
+
     // ── Price history (last 10 gold price updates) ───────────────────────────
     const priceHistory = await Price.find({ type: 'gold' })
       .sort({ createdAt: -1 })
       .limit(10)
       .lean();
-    
+
     // ── Daily and Weekly order counts for period cards (including all statuses) ──
     const dailyTotal = dailyCompleted + dailyPending + dailyApproved + dailyCancelled + dailyRejected + dailyProcessing;
     const weeklyTotal = weeklyCompleted + weeklyPending + weeklyApproved + weeklyCancelled + weeklyRejected + weeklyProcessing;
     const monthlyTotal = monthlyCompleted + monthlyPending + monthlyApproved + monthlyCancelled + monthlyRejected + monthlyProcessing;
-    
+
     // ── Response ─────────────────────────────────────────────────────────────
     res.status(200).json({
       success: true,
-      
+
       users: {
         totalAdmins,
         activeAdmins,
@@ -913,7 +913,7 @@ export const getAnalytics = async (req, res) => {
         approvedCustomers,
         pendingCustomers: totalCustomers - approvedCustomers,
       },
-      
+
       orders: {
         total: totalOrders,
         completed: completedOrders,
@@ -922,7 +922,7 @@ export const getAnalytics = async (req, res) => {
         processing: processingOrders,
         approved: approvedOrders,
         rejected: rejectedOrders || 0,
-        
+
         daily: {
           completed: dailyCompleted,
           pending: dailyPending,
@@ -951,13 +951,13 @@ export const getAnalytics = async (req, res) => {
           total: monthlyTotal,
         },
       },
-      
+
       revenue: {
         total: totalRevAgg.total,
         avgPerOrder: totalOrders > 0 ? Math.round(totalRevAgg.total / totalOrders) : 0,
         buyRevenue: totalRevAgg.buyRev,
         sellRevenue: totalRevAgg.sellRev,
-        
+
         daily: {
           total: dailyRevAgg.total,
           count: dailyRevAgg.count,
@@ -977,13 +977,13 @@ export const getAnalytics = async (req, res) => {
           sellRevenue: monthlyRevAgg.sellRev,
         },
       },
-      
+
       metalBreakdown: metalBreakdown.map(m => ({
         _id: m._id || 'unknown',
         count: m.count,
         revenue: m.revenue,
       })),
-      
+
       shopPerformance,
       monthlyTrend: monthlyTrend.map(m => ({
         _id: m._id,
@@ -1012,13 +1012,13 @@ export const getAnalytics = async (req, res) => {
         buy_diff_24k: p.buy_diff_24k,
       })),
     });
-    
+
   } catch (error) {
     console.error('getAnalytics error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Server error', 
-      error: error.message 
+      message: 'Server error',
+      error: error.message
     });
   }
 };
@@ -1063,23 +1063,23 @@ export const getMyShopAnalytics = async (req, res) => {
     // ── Daily / Weekly / Monthly order counts ────────────────────────────────
     const dailyOrders = await Order.countDocuments({ ...orderFilter, createdAt: { $gte: startOfToday } });
     const dailyCompleted = await Order.countDocuments({ ...orderFilter, status: 'completed', createdAt: { $gte: startOfToday } });
-    const dailyApproved  = await Order.countDocuments({ ...orderFilter, status: 'approved',  createdAt: { $gte: startOfToday } });
-    const dailyPending   = await Order.countDocuments({ ...orderFilter, status: 'pending',   createdAt: { $gte: startOfToday } });
-    const dailyRejected  = await Order.countDocuments({ ...orderFilter, status: 'rejected',  createdAt: { $gte: startOfToday } });
+    const dailyApproved = await Order.countDocuments({ ...orderFilter, status: 'approved', createdAt: { $gte: startOfToday } });
+    const dailyPending = await Order.countDocuments({ ...orderFilter, status: 'pending', createdAt: { $gte: startOfToday } });
+    const dailyRejected = await Order.countDocuments({ ...orderFilter, status: 'rejected', createdAt: { $gte: startOfToday } });
     const dailyCancelled = await Order.countDocuments({ ...orderFilter, status: 'cancelled', createdAt: { $gte: startOfToday } });
 
     const weeklyOrders = await Order.countDocuments({ ...orderFilter, createdAt: { $gte: startOfWeek } });
     const weeklyCompleted = await Order.countDocuments({ ...orderFilter, status: 'completed', createdAt: { $gte: startOfWeek } });
-    const weeklyApproved  = await Order.countDocuments({ ...orderFilter, status: 'approved',  createdAt: { $gte: startOfWeek } });
-    const weeklyPending   = await Order.countDocuments({ ...orderFilter, status: 'pending',   createdAt: { $gte: startOfWeek } });
-    const weeklyRejected  = await Order.countDocuments({ ...orderFilter, status: 'rejected',  createdAt: { $gte: startOfWeek } });
+    const weeklyApproved = await Order.countDocuments({ ...orderFilter, status: 'approved', createdAt: { $gte: startOfWeek } });
+    const weeklyPending = await Order.countDocuments({ ...orderFilter, status: 'pending', createdAt: { $gte: startOfWeek } });
+    const weeklyRejected = await Order.countDocuments({ ...orderFilter, status: 'rejected', createdAt: { $gte: startOfWeek } });
     const weeklyCancelled = await Order.countDocuments({ ...orderFilter, status: 'cancelled', createdAt: { $gte: startOfWeek } });
 
     const monthlyOrders = await Order.countDocuments({ ...orderFilter, createdAt: { $gte: startOfMonth } });
     const monthlyCompleted = await Order.countDocuments({ ...orderFilter, status: 'completed', createdAt: { $gte: startOfMonth } });
-    const monthlyApproved  = await Order.countDocuments({ ...orderFilter, status: 'approved',  createdAt: { $gte: startOfMonth } });
-    const monthlyPending   = await Order.countDocuments({ ...orderFilter, status: 'pending',   createdAt: { $gte: startOfMonth } });
-    const monthlyRejected  = await Order.countDocuments({ ...orderFilter, status: 'rejected',  createdAt: { $gte: startOfMonth } });
+    const monthlyApproved = await Order.countDocuments({ ...orderFilter, status: 'approved', createdAt: { $gte: startOfMonth } });
+    const monthlyPending = await Order.countDocuments({ ...orderFilter, status: 'pending', createdAt: { $gte: startOfMonth } });
+    const monthlyRejected = await Order.countDocuments({ ...orderFilter, status: 'rejected', createdAt: { $gte: startOfMonth } });
     const monthlyCancelled = await Order.countDocuments({ ...orderFilter, status: 'cancelled', createdAt: { $gte: startOfMonth } });
 
     // ── Revenue aggregations (completed orders only) ─────────────────────────
@@ -1125,10 +1125,10 @@ export const getMyShopAnalytics = async (req, res) => {
           },
         },
       ]);
-      return result[0] ?? { 
-        total: 0, 
-        count: 0, 
-        sellRevenue: 0, 
+      return result[0] ?? {
+        total: 0,
+        count: 0,
+        sellRevenue: 0,
         buyRevenue: 0,
         salesCount: 0,
         purchasesCount: 0,
@@ -1178,7 +1178,7 @@ export const getMyShopAnalytics = async (req, res) => {
     const last7Days = new Date(now);
     last7Days.setDate(now.getDate() - 6);
     last7Days.setHours(0, 0, 0, 0);
-    
+
     const weeklyData = await Order.aggregate([
       {
         $match: {
@@ -1191,25 +1191,25 @@ export const getMyShopAnalytics = async (req, res) => {
         $group: {
           _id: { $dayOfWeek: '$createdAt' },
           sales: {
-            $sum: { 
+            $sum: {
               $cond: [
                 { $eq: ['$orderType', 'buy'] },  // Customer buys = our SELL revenue
-                { $ifNull: ['$finalizedAmount', '$totalAmount'] }, 
+                { $ifNull: ['$finalizedAmount', '$totalAmount'] },
                 0
-              ] 
+              ]
             }
           },
           buys: {
-            $sum: { 
+            $sum: {
               $cond: [
                 { $eq: ['$orderType', 'sell'] },  // Customer sells = our BUY revenue
-                { $ifNull: ['$finalizedAmount', '$totalAmount'] }, 
+                { $ifNull: ['$finalizedAmount', '$totalAmount'] },
                 0
-              ] 
+              ]
             }
           },
           salesCount: { $sum: { $cond: [{ $eq: ['$orderType', 'buy'] }, 1, 0] } },
-          buysCount:  { $sum: { $cond: [{ $eq: ['$orderType', 'sell'] }, 1, 0] } },
+          buysCount: { $sum: { $cond: [{ $eq: ['$orderType', 'sell'] }, 1, 0] } },
           totalOrders: { $sum: 1 },
         },
       },
@@ -1234,7 +1234,7 @@ export const getMyShopAnalytics = async (req, res) => {
     const last30Days = new Date(now);
     last30Days.setDate(now.getDate() - 29);
     last30Days.setHours(0, 0, 0, 0);
-    
+
     const dailyData = await Order.aggregate([
       {
         $match: {
@@ -1247,25 +1247,25 @@ export const getMyShopAnalytics = async (req, res) => {
         $group: {
           _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
           sales: {
-            $sum: { 
+            $sum: {
               $cond: [
                 { $eq: ['$orderType', 'buy'] },  // Customer buys = our SELL revenue
-                { $ifNull: ['$finalizedAmount', '$totalAmount'] }, 
+                { $ifNull: ['$finalizedAmount', '$totalAmount'] },
                 0
-              ] 
+              ]
             }
           },
           buys: {
-            $sum: { 
+            $sum: {
               $cond: [
                 { $eq: ['$orderType', 'sell'] },  // Customer sells = our BUY revenue
-                { $ifNull: ['$finalizedAmount', '$totalAmount'] }, 
+                { $ifNull: ['$finalizedAmount', '$totalAmount'] },
                 0
-              ] 
+              ]
             }
           },
           salesCount: { $sum: { $cond: [{ $eq: ['$orderType', 'buy'] }, 1, 0] } },
-          buysCount:  { $sum: { $cond: [{ $eq: ['$orderType', 'sell'] }, 1, 0] } },
+          buysCount: { $sum: { $cond: [{ $eq: ['$orderType', 'sell'] }, 1, 0] } },
           totalOrders: { $sum: 1 },
         },
       },
@@ -1325,7 +1325,7 @@ export const getMyShopAnalytics = async (req, res) => {
         buyRevenue: totalRevAgg.buyRevenue,       // BUY revenue (customer sells to shop)
         salesCount: totalRevAgg.salesCount,       // Number of sales transactions
         purchasesCount: totalRevAgg.purchasesCount, // Number of purchase transactions
-        
+
         daily: {
           total: dailyRevAgg.total,
           count: dailyRevAgg.count,
@@ -1386,8 +1386,8 @@ export const getAllOrders = async (req, res) => {
   try {
     const { status, adminId, orderType, page = 1, limit = 20 } = req.query;
     const query = {};
-    if (status)    query.status    = status;
-    if (adminId)   query.adminId   = adminId;
+    if (status) query.status = status;
+    if (adminId) query.adminId = adminId;
     if (orderType) query.orderType = orderType;
 
     const skip = (Number(page) - 1) * Number(limit);
@@ -1417,21 +1417,21 @@ export const getAllOrders = async (req, res) => {
 
     // Merge into one map — SuperAdmin wins if same ID exists in both (won't happen)
     const shopMap = {};
-    adminDocs.forEach(d      => { shopMap[String(d._id)] = d; });
+    adminDocs.forEach(d => { shopMap[String(d._id)] = d; });
     superAdminDocs.forEach(d => { shopMap[String(d._id)] = d; }); // overwrites if SA
 
     const enriched = orders.map(o => {
-      const id  = String(o.adminId);
+      const id = String(o.adminId);
       const doc = shopMap[id];
 
       o.adminId = doc
         ? {
-            _id:         doc._id,
-            shopName:    doc.shopName?.trim() || doc.name?.trim() || 'Shop',
-            phoneNumber: doc.phoneNumber || null,
-            address:     doc.address    || null,
-            city:        doc.city       || null,
-          }
+          _id: doc._id,
+          shopName: doc.shopName?.trim() || doc.name?.trim() || 'Shop',
+          phoneNumber: doc.phoneNumber || null,
+          address: doc.address || null,
+          city: doc.city || null,
+        }
         : { _id: id, shopName: 'Unknown Shop', phoneNumber: null };
 
       return o;
@@ -1440,7 +1440,7 @@ export const getAllOrders = async (req, res) => {
     res.status(200).json({
       success: true,
       total,
-      page:  Number(page),
+      page: Number(page),
       pages: Math.ceil(total / Number(limit)),
       orders: enriched,
     });
@@ -1458,7 +1458,7 @@ export const getMyOrders = async (req, res) => {
     const saId = req.user.id;
 
     const query = { adminId: new mongoose.Types.ObjectId(saId) };
-    if (status)    query.status    = status;
+    if (status) query.status = status;
     if (orderType) query.orderType = orderType;
 
     const skip = (Number(page) - 1) * Number(limit);
@@ -1474,7 +1474,7 @@ export const getMyOrders = async (req, res) => {
 
     res.status(200).json({
       success: true, total,
-      page:  Number(page),
+      page: Number(page),
       pages: Math.ceil(total / Number(limit)),
       orders,  // Now orders will have populated customerId with name/email
     });
@@ -1493,11 +1493,11 @@ export const deleteOrder = async (req, res) => {
 
     // Find the order
     const order = await Order.findById(orderId);
-    
+
     if (!order) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        message: 'Order not found.' 
+        message: 'Order not found.'
       });
     }
 
@@ -1532,10 +1532,10 @@ export const deleteOrder = async (req, res) => {
     });
   } catch (error) {
     console.error('deleteOrder error:', error.message);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       message: 'Server error while deleting order.',
-      error: error.message 
+      error: error.message
     });
   }
 };
@@ -1572,10 +1572,10 @@ export const updateOrderStatus = async (req, res) => {
 
     // ── Validate transition ───────────────────────────────────────────────────
     const allowed = {
-      pending:   ["approved", "rejected"],
-      approved:  ["completed", "cancelled"],
+      pending: ["approved", "rejected"],
+      approved: ["completed", "cancelled"],
       completed: [],
-      rejected:  [],
+      rejected: [],
       cancelled: [],
     };
 
@@ -1599,9 +1599,9 @@ export const updateOrderStatus = async (req, res) => {
 
     if (status === "completed") {
       // Validate required completion fields
-      const base  = parseFloat(completionBaseAmount) || parseFloat(finalizedAmount) || 0;
-      const extra = parseFloat(extraCharges)  || 0;
-      const disc  = parseFloat(discount)      || 0;
+      const base = parseFloat(completionBaseAmount) || parseFloat(finalizedAmount) || 0;
+      const extra = parseFloat(extraCharges) || 0;
+      const disc = parseFloat(discount) || 0;
       const final = Math.round((base + extra - disc) * 100) / 100;
 
       if (final <= 0) {
@@ -1610,13 +1610,13 @@ export const updateOrderStatus = async (req, res) => {
 
       // Store all three components so the receipt / detail view can show a breakdown
       order.completionBaseAmount = base;
-      order.extraCharges         = extra;
-      order.discount             = disc;
-      order.finalizedAmount      = final;
+      order.extraCharges = extra;
+      order.discount = disc;
+      order.finalizedAmount = final;
 
       // Payment status
       order.paymentStatus = paymentReceived ? "paid" : "pending";
-      order.paymentTime   = paymentReceived ? new Date() : null;
+      order.paymentTime = paymentReceived ? new Date() : null;
     }
 
     await order.save(); // pre-save hook generates receiptNumber + completedAt
@@ -1643,14 +1643,14 @@ export const updateOrderStatus = async (req, res) => {
 
     // ── Notify the customer ──────────────────────────────────────────────
     try {
-   const notif = await Notification.create({
-  userId:    order.customerId,
-  userModel: "Customer",
-  title:     `Order ${status.charAt(0).toUpperCase() + status.slice(1)}`,
-  message:   detailedMessage,
-  type:      "order",          // ← FIXED
-  data:      { orderId: order._id, status },
-});
+      const notif = await Notification.create({
+        userId: order.customerId,
+        userModel: "Customer",
+        title: `Order ${status.charAt(0).toUpperCase() + status.slice(1)}`,
+        message: detailedMessage,
+        type: "order",          // ← FIXED
+        data: { orderId: order._id, status },
+      });
       console.log('Notification created:', notif._id);
     } catch (notifErr) {
       console.error("Notification error:", notifErr);
@@ -1672,18 +1672,18 @@ export const updateOrderStatus = async (req, res) => {
       success: true,
       message: `Order ${status} successfully`,
       order: {
-        _id:                  order._id,
-        status:               order.status,
-        receiptNumber:        order.receiptNumber || null,
-        finalizedAmount:      order.finalizedAmount,
+        _id: order._id,
+        status: order.status,
+        receiptNumber: order.receiptNumber || null,
+        finalizedAmount: order.finalizedAmount,
         completionBaseAmount: order.completionBaseAmount,
-        extraCharges:         order.extraCharges,
-        discount:             order.discount,
-        paymentStatus:        order.paymentStatus,
-        paymentTime:          order.paymentTime,
-        approvedAt:           order.approvedAt,
-        completedAt:          order.completedAt,
-        rejectionReason:      order.rejectionReason,
+        extraCharges: order.extraCharges,
+        discount: order.discount,
+        paymentStatus: order.paymentStatus,
+        paymentTime: order.paymentTime,
+        approvedAt: order.approvedAt,
+        completedAt: order.completedAt,
+        rejectionReason: order.rejectionReason,
       },
       whatsappLink,
     });
@@ -1709,10 +1709,10 @@ export const updateOrderStatus = async (req, res) => {
 export const getAllCustomers = async (req, res) => {
   try {
     const { isFlagged, page = 1, limit = 20 } = req.query;
-    
+
     const skip = (Number(page) - 1) * Number(limit);
     const pageLimit = Number(limit);
-    
+
     // Step 1: Get paginated customer IDs from approved registrations
     const approvedCustomerIds = await ShopRegistration.aggregate([
       { $match: { status: 'approved' } },
@@ -1721,9 +1721,9 @@ export const getAllCustomers = async (req, res) => {
       { $limit: pageLimit },
       { $project: { _id: 1 } }
     ]);
-    
+
     const customerIds = approvedCustomerIds.map(c => c._id);
-    
+
     if (customerIds.length === 0) {
       return res.status(200).json({
         success: true,
@@ -1733,31 +1733,31 @@ export const getAllCustomers = async (req, res) => {
         customers: [],
       });
     }
-    
+
     // Step 2: Get total count for pagination
     const total = await ShopRegistration.aggregate([
       { $match: { status: 'approved' } },
       { $group: { _id: '$customerId' } },
       { $count: 'total' }
     ]);
-    
+
     const totalCount = total[0]?.total || 0;
-    
+
     // Step 3: Get customer details
     const query = { _id: { $in: customerIds } };
     if (isFlagged === 'true') query.isFlagged = true;
-    
+
     const customers = await Customer.find(query)
       .select('-password')
       .sort({ createdAt: -1 });
-    
+
     // Step 4: Get completed orders stats
     const orderAggs = await Order.aggregate([
-      { 
-        $match: { 
+      {
+        $match: {
           customerId: { $in: customerIds },
           status: 'completed'
-        } 
+        }
       },
       {
         $group: {
@@ -1770,18 +1770,18 @@ export const getAllCustomers = async (req, res) => {
         },
       },
     ]);
-    
+
     const aggMap = {};
     orderAggs.forEach(a => { aggMap[a._id.toString()] = a; });
-    
+
     // Step 5: Enrich customers
     const enriched = customers.map(c => {
       const agg = aggMap[c._id.toString()] || {};
       const customerObj = c.toObject();
-      
+
       let isFlaggedCustomer = false;
       let flagReason = null;
-      
+
       if (customerObj.shopRelations) {
         const flagged = customerObj.shopRelations.find(r => r.isFlagged === true);
         if (flagged) {
@@ -1789,7 +1789,7 @@ export const getAllCustomers = async (req, res) => {
           flagReason = flagged.flagReason;
         }
       }
-      
+
       return {
         _id: c._id,
         name: c.name,
@@ -1808,7 +1808,7 @@ export const getAllCustomers = async (req, res) => {
         flagReason: flagReason,
       };
     });
-    
+
     res.status(200).json({
       success: true,
       total: totalCount,
@@ -1816,7 +1816,7 @@ export const getAllCustomers = async (req, res) => {
       pages: Math.ceil(totalCount / pageLimit),
       customers: enriched,
     });
-    
+
   } catch (error) {
     console.error('getAllCustomers error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -1840,10 +1840,10 @@ export const getMyCustomers = async (req, res) => {
   try {
     const { isFlagged, page = 1, limit = 20 } = req.query;
     const saId = req.user.id;
-    
+
     const skip = (Number(page) - 1) * Number(limit);
     const pageLimit = Number(limit);
-    
+
     // Step 1: Get paginated approved registrations
     const registrations = await ShopRegistration.find({
       shopId: saId,
@@ -1853,13 +1853,13 @@ export const getMyCustomers = async (req, res) => {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(pageLimit);
-    
+
     // Step 2: Get total count
     const total = await ShopRegistration.countDocuments({
       shopId: saId,
       status: 'approved'
     });
-    
+
     if (registrations.length === 0) {
       return res.status(200).json({
         success: true,
@@ -1869,22 +1869,22 @@ export const getMyCustomers = async (req, res) => {
         customers: [],
       });
     }
-    
+
     // Step 3: Get customer IDs
     const customerIds = registrations
       .map(reg => reg.customerId?._id || reg.customerId)
       .filter(id => id);
-    
+
     // Step 4: Get completed orders stats
     let orderAggs = [];
     if (customerIds.length > 0) {
       orderAggs = await Order.aggregate([
-        { 
-          $match: { 
+        {
+          $match: {
             adminId: new mongoose.Types.ObjectId(saId),
             customerId: { $in: customerIds },
             status: 'completed'
-          } 
+          }
         },
         {
           $group: {
@@ -1898,23 +1898,23 @@ export const getMyCustomers = async (req, res) => {
         },
       ]);
     }
-    
+
     const aggMap = {};
     orderAggs.forEach(a => { aggMap[a._id.toString()] = a; });
-    
+
     // Step 5: Build customer list
     const customers = registrations.map(reg => {
       const customer = reg.customerId;
       if (!customer) return null;
-      
+
       const agg = aggMap[customer._id.toString()] || {};
       const customerObj = customer.toObject();
-      
+
       // Get shop-specific trust/flag
       let isTrusted = false;
       let isFlaggedCustomer = false;
       let flagReason = null;
-      
+
       if (customerObj.shopRelations) {
         const relation = customerObj.shopRelations.find(r => r.adminId.toString() === saId);
         if (relation) {
@@ -1923,12 +1923,12 @@ export const getMyCustomers = async (req, res) => {
           flagReason = relation.flagReason || null;
         }
       }
-      
+
       // Get shop customer number
       const shopCustomerNumber = customer.shopCustomerNumbers?.find(
         n => n.adminId.toString() === saId
       )?.number || null;
-      
+
       return {
         _id: customer._id,
         name: customer.name,
@@ -1949,13 +1949,13 @@ export const getMyCustomers = async (req, res) => {
         flagReason: flagReason,
       };
     }).filter(c => c !== null);
-    
+
     // Apply flagged filter
     let filteredCustomers = customers;
     if (isFlagged === 'true') {
       filteredCustomers = customers.filter(c => c.isFlagged === true);
     }
-    
+
     res.status(200).json({
       success: true,
       total: total,
@@ -1963,7 +1963,7 @@ export const getMyCustomers = async (req, res) => {
       pages: Math.ceil(total / pageLimit),
       customers: filteredCustomers,
     });
-    
+
   } catch (error) {
     console.error('getMyCustomers error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -1984,7 +1984,7 @@ export const updateCustomerStatus = async (req, res) => {
 
     customer.status = status;
     if (status === 'approved') {
-      customer.isActive  = true;
+      customer.isActive = true;
       customer.approvedBy = req.user.id;
       customer.approvedAt = new Date();
     }
@@ -1994,12 +1994,12 @@ export const updateCustomerStatus = async (req, res) => {
     await customer.save();
 
     await Notification.create({
-      userId:    customer._id,
+      userId: customer._id,
       userModel: 'Customer',
-      title:     'Account Status Updated',
-      message:   `Your account status has been updated to ${status}.`,
-      type:      'customer_approval',
-      data:      { customerId: customer._id },
+      title: 'Account Status Updated',
+      message: `Your account status has been updated to ${status}.`,
+      type: 'customer_approval',
+      data: { customerId: customer._id },
     });
 
     res.status(200).json({ success: true, message: `Customer status updated to ${status}.`, customer });
@@ -2016,14 +2016,14 @@ export const trustCustomerForSA = async (req, res) => {
     if (!customer) return res.status(404).json({ message: 'Customer not found' });
 
     const saIdStr = saId.toString();
-    
+
     const otherRelations = customer.shopRelations.filter(r => r.adminId.toString() !== saIdStr);
-    
+
     customer.shopRelations = [
       ...otherRelations,
       { adminId: saId, isTrusted: true, isFlagged: false, flaggedBy: null, flagReason: null }
     ];
-    
+
     await customer.save();
 
     res.status(200).json({ success: true, message: 'Customer marked as trusted.' });
@@ -2041,14 +2041,14 @@ export const flagCustomerForSA = async (req, res) => {
     if (!customer) return res.status(404).json({ message: 'Customer not found' });
 
     const saIdStr = saId.toString();
-    
+
     const otherRelations = customer.shopRelations.filter(r => r.adminId.toString() !== saIdStr);
-    
+
     customer.shopRelations = [
       ...otherRelations,
       { adminId: saId, isTrusted: false, isFlagged: true, flaggedBy: saId, flagReason: reason || 'Flagged as potential scam' }
     ];
-    
+
     await customer.save();
 
     // Notify customer
@@ -2075,7 +2075,7 @@ export const flagCustomerForSA = async (req, res) => {
 // ── ADMIN MANAGEMENT ───────────────────────────────────────────────────────────
 export const createAdmin = async (req, res) => {
   try {
-    const { name, password, shopName, phoneNumber, whatsappNumber, address, city } = req.body;
+    const { name, password, shopName, phoneNumber, whatsappNumber, address, city, tolaWeight } = req.body;
 
     // ensure phone number is unique across Admin, SuperAdmin, Customer
     const phone = String(phoneNumber || '').trim();
@@ -2092,11 +2092,12 @@ export const createAdmin = async (req, res) => {
       name,
       password,
       shopName,
-      phoneNumber:    phone || null,
+      phoneNumber: phone || null,
       whatsappNumber: whatsappNumber || phone || null,
-      address:        address || null,
-      city:           city || null,
-      createdBy:      req.user.id,
+      address: address || null,
+      city: city || null,
+      createdBy: req.user.id,
+      tolaWeight: tolaWeight,
     });
 
     res.status(201).json({
@@ -2105,19 +2106,20 @@ export const createAdmin = async (req, res) => {
       admin: {
         id: admin._id, name: admin.name,
         shopName: admin.shopName, phoneNumber: admin.phoneNumber, isActive: admin.isActive,
+        tolaWeight: admin.tolaWeight,
       },
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
+ 
 export const getAllAdmins = async (req, res) => {
   try {
-      const admins = await Admin.find()
-        .select('-password')
-        .populate('createdBy', 'name phoneNumber')
-        .sort({ createdAt: -1 });
+    const admins = await Admin.find()
+      .select('-password')
+      .populate('createdBy', 'name phoneNumber email ')
+      .sort({ createdAt: -1 });
     res.status(200).json({ success: true, count: admins.length, admins });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -2128,7 +2130,7 @@ export const getAdminById = async (req, res) => {
   try {
     const admin = await Admin.findById(req.params.id)
       .select('-password')
-      .populate('createdBy', 'name email');
+      .populate('createdBy', 'name phoneNumber email');
     if (!admin) return res.status(404).json({ message: 'Admin not found.' });
     res.status(200).json({ success: true, admin });
   } catch (error) {
@@ -2139,26 +2141,27 @@ export const getAdminById = async (req, res) => {
 export const updateAdmin = async (req, res) => {
   try {
     const {
-      name, shopName, phoneNumber, whatsappNumber,
+      name, shopName, phoneNumber, whatsappNumber, tolaWeight,
       address, city, isActive, diff_24k, diff_2385k, diff_silver,
       buy_diff_24k, buy_diff_2385k, buy_diff_silver,
     } = req.body;
     const admin = await Admin.findById(req.params.id);
     if (!admin) return res.status(404).json({ message: 'Admin not found.' });
 
-    if (name            !== undefined) admin.name            = name;
-    if (shopName        !== undefined) admin.shopName        = shopName;
-    if (phoneNumber     !== undefined) admin.phoneNumber     = phoneNumber;
-    if (whatsappNumber  !== undefined) admin.whatsappNumber  = whatsappNumber;
-    if (address         !== undefined) admin.address         = address;
-    if (city            !== undefined) admin.city            = city;
-    if (isActive        !== undefined) admin.isActive        = isActive;
-    if (diff_24k        !== undefined) admin.diff_24k        = Number(diff_24k);
-    if (diff_2385k      !== undefined) admin.diff_2385k      = Number(diff_2385k);
-    if (diff_silver     !== undefined) admin.diff_silver     = Number(diff_silver);
-    if (buy_diff_24k    !== undefined) admin.buy_diff_24k    = Number(buy_diff_24k);
-    if (buy_diff_2385k  !== undefined) admin.buy_diff_2385k  = Number(buy_diff_2385k);
+    if (name !== undefined) admin.name = name;
+    if (shopName !== undefined) admin.shopName = shopName;
+    if (phoneNumber !== undefined) admin.phoneNumber = phoneNumber;
+    if (whatsappNumber !== undefined) admin.whatsappNumber = whatsappNumber;
+    if (address !== undefined) admin.address = address;
+    if (city !== undefined) admin.city = city;
+    if (isActive !== undefined) admin.isActive = isActive;
+    if (diff_24k !== undefined) admin.diff_24k = Number(diff_24k);
+    if (diff_2385k !== undefined) admin.diff_2385k = Number(diff_2385k);
+    if (diff_silver !== undefined) admin.diff_silver = Number(diff_silver);
+    if (buy_diff_24k !== undefined) admin.buy_diff_24k = Number(buy_diff_24k);
+    if (buy_diff_2385k !== undefined) admin.buy_diff_2385k = Number(buy_diff_2385k);
     if (buy_diff_silver !== undefined) admin.buy_diff_silver = Number(buy_diff_silver);
+    if (tolaWeight !== undefined) admin.tolaWeight = Number(tolaWeight);
     await admin.save();
 
     const adminObj = admin.toObject();
@@ -2203,18 +2206,18 @@ export const uploadPicture = async (req, res) => {
     const { title, description, type, weight, weightUnit, price, showOnHomePage, showToAdmins } = req.body;
 
     const picture = await Picture.create({
-      uploadedBy:         req.user.id,
-      uploaderModel:      'SuperAdmin',
-      imageUrl:           req.file.path,
+      uploadedBy: req.user.id,
+      uploaderModel: 'SuperAdmin',
+      imageUrl: req.file.path,
       cloudinaryPublicId: req.file.filename,
-      title:              title       || null,
-      description:        description || null,
-      type:               type        || 'gold',
-      weight:             weight      ? Number(weight) : null,
-      weightUnit:         weightUnit  || 'gram',          // <-- ADD THIS
-      price:              price       ? Number(price)  : null,
-      showOnHomePage:     showOnHomePage !== 'false',
-      showToAdmins:       showToAdmins   !== 'false',
+      title: title || null,
+      description: description || null,
+      type: type || 'gold',
+      weight: weight ? Number(weight) : null,
+      weightUnit: weightUnit || 'gram',          // <-- ADD THIS
+      price: price ? Number(price) : null,
+      showOnHomePage: showOnHomePage !== 'false',
+      showToAdmins: showToAdmins !== 'false',
     });
 
     res.status(201).json({ success: true, message: 'Picture uploaded.', picture });
@@ -2358,7 +2361,7 @@ export const updateProfile = async (req, res) => {
     const { name, shopName, phoneNumber, whatsappNumber, address, city, removeLogo } = req.body;
     const sa = await SuperAdmin.findById(req.user.id);
     if (!sa) return res.status(404).json({ message: 'Super admin not found.' });
-    
+
     if (name !== undefined) sa.name = name.trim();
     if (shopName !== undefined) sa.shopName = shopName.trim();
     if (phoneNumber !== undefined) sa.phoneNumber = phoneNumber.trim();
@@ -2395,14 +2398,14 @@ export const updateProfile = async (req, res) => {
 const handleDeleteLogo = async () => {
   if (!shopLogo && !logoPreview) return;
   if (!window.confirm("Are you sure you want to remove the shop logo?")) return;
-  
+
   // If there's a preview but no saved logo, just clear the preview
   if (logoPreview && !shopLogo) {
     setLogoFile(null);
     setLogoPreview(null);
     return;
   }
-  
+
   setPfSaving(true);
   try {
     const formData = new FormData();
@@ -2435,28 +2438,28 @@ export const unflagCustomerForSA = async (req, res) => {
     if (!customer) return res.status(404).json({ message: 'Customer not found' });
 
     const saIdStr = saId.toString();
-    
+
     // Filter out all relations for this shop
     const otherRelations = customer.shopRelations.filter(
       r => r.adminId.toString() !== saIdStr
     );
-    
+
     // Get the relations for this shop
     const shopRelations = customer.shopRelations.filter(
       r => r.adminId.toString() === saIdStr
     );
-    
+
     if (shopRelations.length > 0) {
       // Take the last one and unflag it
       const lastRel = shopRelations[shopRelations.length - 1];
       lastRel.isFlagged = false;
       lastRel.flagReason = null;
       lastRel.flaggedBy = null;
-      
+
       // Replace with cleaned version
       customer.shopRelations = [...otherRelations, lastRel];
     }
-    
+
     await customer.save();
 
     res.status(200).json({ success: true, message: 'Flag removed from customer.' });
@@ -2474,13 +2477,13 @@ export const untrustCustomerForSA = async (req, res) => {
     const saIdStr = saId.toString();
     const otherRelations = customer.shopRelations.filter(r => r.adminId.toString() !== saIdStr);
     const shopRelations = customer.shopRelations.filter(r => r.adminId.toString() === saIdStr);
-    
+
     if (shopRelations.length > 0) {
       const lastRel = shopRelations[shopRelations.length - 1];
       lastRel.isTrusted = false;
       customer.shopRelations = [...otherRelations, lastRel];
     }
-    
+
     await customer.save();
     res.status(200).json({ success: true, message: 'Trusted status removed.' });
   } catch (error) {
@@ -2496,19 +2499,19 @@ export const untrustCustomerForSA = async (req, res) => {
 export const getCustomerWithDetails = async (req, res) => {
   try {
     const customerId = req.params.id;
-    
+
     const customer = await Customer.findById(customerId).select('-password');
     if (!customer) {
       return res.status(404).json({ message: 'Customer not found.' });
     }
-    
+
     // Get all shops the customer has traded with
     const shopIds = customer.shopRelations?.map(r => r.adminId) || [];
     const shops = await Admin.find({ _id: { $in: shopIds } }).select('shopName phoneNumber address city');
     const superAdminShops = await SuperAdmin.find({ _id: { $in: shopIds } }).select('shopName phoneNumber address city');
-    
+
     const allShops = [...shops, ...superAdminShops];
-    
+
     // Get all orders with shop details
     const orders = await Order.find({ customerId: customer._id })
       .populate({
@@ -2517,7 +2520,7 @@ export const getCustomerWithDetails = async (req, res) => {
         model: 'Admin'
       })
       .sort({ createdAt: -1 });
-    
+
     // Enrich orders - try SuperAdmin if Admin not found
     const enrichedOrders = await Promise.all(orders.map(async (order) => {
       const orderObj = order.toObject();
@@ -2535,7 +2538,7 @@ export const getCustomerWithDetails = async (req, res) => {
       }
       return orderObj;
     }));
-    
+
     // Get order statistics - only count completed orders for revenue
     const completedOrders = orders.filter(o => o.status === 'completed');
     const orderStats = {
@@ -2549,7 +2552,7 @@ export const getCustomerWithDetails = async (req, res) => {
       // Only sum completed orders for revenue
       totalSpent: completedOrders.reduce((sum, o) => sum + (o.finalizedAmount || o.totalAmount || 0), 0),
     };
-    
+
     // Get per-shop trust/flag status
     const shopStatuses = (customer.shopRelations || []).map(rel => ({
       shopId: rel.adminId,
@@ -2557,10 +2560,10 @@ export const getCustomerWithDetails = async (req, res) => {
       isFlagged: rel.isFlagged || false,
       flagReason: rel.flagReason || null,
     }));
-    
+
     // Get customer's trust/flag status from the most recent shop relation
     const lastRelation = customer.shopRelations?.[customer.shopRelations.length - 1];
-    
+
     res.status(200).json({
       success: true,
       customer: {
@@ -2585,29 +2588,29 @@ export const getCustomerOrders = async (req, res) => {
   try {
     const customerId = req.params.id;
     const { status, orderType, page = 1, limit = 20, search } = req.query;
-    
+
     const query = { customerId: new mongoose.Types.ObjectId(customerId) };
     if (status && status !== 'all') query.status = status;
     if (orderType && orderType !== 'all') query.orderType = orderType;
-    
+
     const skip = (Number(page) - 1) * Number(limit);
-    
+
     // Get orders
     const orders = await Order.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(Number(limit))
       .lean();
-    
+
     const total = await Order.countDocuments(query);
-    
+
     // Enrich orders with shop names from both Admin and SuperAdmin
     const enrichedOrders = await Promise.all(orders.map(async (order) => {
       const orderObj = { ...order };
-      
+
       // Determine which model to use based on adminModel or by checking both
       let shop = null;
-      
+
       // First try based on adminModel if it exists
       if (order.adminModel === 'SuperAdmin') {
         shop = await SuperAdmin.findById(order.adminId).select('shopName name phoneNumber address city').lean();
@@ -2619,7 +2622,7 @@ export const getCustomerOrders = async (req, res) => {
           shop = await SuperAdmin.findById(order.adminId).select('shopName name phoneNumber address city').lean();
         }
       }
-      
+
       if (shop) {
         orderObj.adminId = {
           _id: shop._id,
@@ -2635,7 +2638,7 @@ export const getCustomerOrders = async (req, res) => {
           shopId: order.adminId,
           status: 'approved'
         }).lean();
-        
+
         if (registration) {
           orderObj.adminId = {
             _id: order.adminId,
@@ -2650,10 +2653,10 @@ export const getCustomerOrders = async (req, res) => {
           };
         }
       }
-      
+
       return orderObj;
     }));
-    
+
     res.status(200).json({
       success: true,
       orders: enrichedOrders,
