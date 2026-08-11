@@ -19,7 +19,7 @@ const customerSchema = new mongoose.Schema(
     isTrusted: { type: Boolean, default: false }, // Trusted = skip approval for future orders
     isFlagged: { type: Boolean, default: false }, // Flagged as scam
     flaggedBy: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: mongoose.Schema.Types.ObjectId, 
       ref: "Admin",
       default: null,
     },
@@ -57,6 +57,9 @@ const customerSchema = new mongoose.Schema(
     // Stats
     totalOrders: { type: Number, default: 0 },
     totalSpent: { type: Number, default: 0 },
+     // ── SINGLE ACTIVE SESSION ─────────────────────────────────
+    // Only one browser/device can use this customer account.
+    activeSessionId: {type: String, default: null },
     // Password reset
     resetPasswordToken:   { type: String, default: undefined },
     resetPasswordExpires: { type: Date,   default: undefined },

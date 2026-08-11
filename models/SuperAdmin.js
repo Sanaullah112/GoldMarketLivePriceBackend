@@ -17,13 +17,17 @@ const superAdminSchema = new mongoose.Schema({
   shopLogoPublicId:   { type: String, default: null }, 
 
   // ── Contact & location ────────────────────────────────────────────────────
-  phoneNumber:    { type: String, default: null },
+  phoneNumber:    { type: String, default: null }, 
   whatsappNumber: { type: String, default: null },
   address:        { type: String, default: null },
   city:           { type: String, default: null },
 
   // ── Status ────────────────────────────────────────────────────────────────
   isActive: { type: Boolean, default: true },
+
+     // ── SINGLE ACTIVE SESSION ─────────────────────────────────
+    // Only one browser/device can use this account at a time.
+  activeSessionId: { type: String, default: null},
 
   // ── Gold sell price differences (customer buys from shop) ─────────────────
   diff_24k:    { type: Number, default: 0 },

@@ -18,10 +18,13 @@ const adminSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
   tolaWeight: { type: Number, enum: [11.664, 12.150], default: 11.664 },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'SuperAdmin', required: true },
+     // ── SINGLE ACTIVE SESSION ─────────────────────────────────
+    // Only one browser/device can use this admin account.
+  activeSessionId: { type: String, default: null },
 
   // ── Sell price differences (customer buys from shop) ──────────────────────
   diff_24k: { type: Number, default: 0 },
-  diff_2385k: { type: Number, default: 0 },
+  diff_2385k: { type: Number, default: 0 }, 
   diff_silver: { type: Number, default: 0 },
 
   // ── Buy price differences (customer sells to shop) ────────────────────────

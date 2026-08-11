@@ -50,7 +50,7 @@ export const validateCreateAdmin = [
   body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
   body('shopName').trim().notEmpty().isLength({ min: 2, max: 200 }).withMessage('Shop name is required'),
   // phoneNumber required above
-  handleValidationErrors,
+  handleValidationErrors,  
 ];
 
 export const validatePriceDifference = [

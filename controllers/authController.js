@@ -10,24 +10,75 @@ import Customer from '../models/Customer.js';
 
 // ── Helpers ──────────────────────────────────────────────────
 
-const generateToken = (id, role) => {
-  return jwt.sign({ id, role }, process.env.JWT_SECRET, { expiresIn: '30d' });
+const generateToken = (id, role, sessionId) => {
+  return jwt.sign({ id, role, sessionId }, process.env.JWT_SECRET, { expiresIn: '30d' });
 };
 
 const findUserByIdentifier = async (identifier) => {
   if (!identifier) return null;
-  // Try to match by email first, then by phoneNumber (mobile). Support different field names.
-  const byEmail = { email: identifier };
-  const byPhone = { phoneNumber: identifier };
 
-  let user = await SuperAdmin.findOne(byEmail) || await SuperAdmin.findOne(byPhone);
-  if (user) return { user, role: 'super_admin' };
+  // ───────────────────────────────────────────────────────────
+  // SUPER ADMIN
+  // ───────────────────────────────────────────────────────────
 
-  user = await Admin.findOne(byEmail) || await Admin.findOne(byPhone);
-  if (user) return { user, role: 'admin' };
+  let user = null;
 
-  user = await Customer.findOne(byEmail) || await Customer.findOne(byPhone);
-  if (user) return { user, role: 'customer' };
+  if (identifier.includes('@')) {
+    user = await SuperAdmin.findOne({
+      email: identifier.toLowerCase().trim(),
+    });
+  }
+
+  if (!user) {
+    user = await SuperAdmin.findOne({
+      phoneNumber: identifier.trim(),
+    });
+  }
+
+  if (user) {
+    return {
+      user,
+      role: 'super_admin',
+    };
+  }
+
+  // ───────────────────────────────────────────────────────────
+  // ADMIN
+  // ───────────────────────────────────────────────────────────
+
+  user = await Admin.findOne({
+    phoneNumber: identifier.trim(),
+  });
+
+  if (user) {
+    return {
+      user,
+      role: 'admin',
+    };
+  }
+
+  // ───────────────────────────────────────────────────────────
+  // CUSTOMER
+  // ───────────────────────────────────────────────────────────
+
+  if (identifier.includes('@')) {
+    user = await Customer.findOne({
+      email: identifier.toLowerCase().trim(),
+    });
+  }
+
+  if (!user) {
+    user = await Customer.findOne({
+      phoneNumber: identifier.trim(),
+    });
+  }
+
+  if (user) {
+    return {
+      user,
+      role: 'customer',
+    };
+  }
 
   return null;
 };
@@ -53,63 +104,267 @@ transporter.verify((err, success) => {
     console.log("SMTP ERROR:", err);
   } else {
     console.log("SMTP READY");
-  }
+  } 
 });
 
 // ── Controllers ──────────────────────────────────────────────
+// ============================================================
+// LOGIN
+// ============================================================
 
 export const login = async (req, res) => {
   try {
-    const identifier = req.body.number || req.body.email || req.body.phone || req.body.mobile;
+    // ─────────────────────────────────────────────────────────
+    // GET LOGIN DATA
+    // ─────────────────────────────────────────────────────────
+
+    const identifier =
+      req.body.number ||
+      req.body.email ||
+      req.body.phone ||
+      req.body.mobile;
+
     const password = req.body.password;
+
+    if (!identifier || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone/email and password are required.',
+      });
+    }
+
+
+    // ─────────────────────────────────────────────────────────
+    // FIND USER
+    // ─────────────────────────────────────────────────────────
+
     const userData = await findUserByIdentifier(identifier);
 
-    if (!userData) return res.status(401).json({ message: 'Invalid credentials' });
+    if (!userData) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials',
+      });
+    }
 
     const { user, role } = userData;
 
-    // For admin and super admin only - check if active
+
+    // ─────────────────────────────────────────────────────────
+    // CHECK ACCOUNT STATUS
+    // ─────────────────────────────────────────────────────────
+
+    // Super Admin + Admin
     if (role !== 'customer' && user.isActive === false) {
-      return res.status(401).json({ message: 'Account is deactivated. Contact super admin.' });
+      return res.status(401).json({
+        success: false,
+        message:
+          'Account is deactivated. Contact super admin.',
+      });
     }
 
-    // For customers - only check if flagged (status and isActive removed)
+
+    // Customer
     if (role === 'customer') {
       if (user.isFlagged === true) {
-        return res.status(401).json({ message: 'Your account has been flagged. Please contact support.' });
+        return res.status(401).json({
+          success: false,
+          message:
+            'Your account has been flagged. Please contact support.',
+        });
       }
     }
 
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) return res.status(401).json({ message: 'Invalid credentials' });
 
-    const token = generateToken(user._id, role);
+    // ─────────────────────────────────────────────────────────
+    // CHECK PASSWORD
+    // ─────────────────────────────────────────────────────────
+
+    const isMatch = await user.comparePassword(password);
+
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials',
+      });
+    }
+
+
+    // ─────────────────────────────────────────────────────────
+    // CREATE NEW SESSION ID
+    // ─────────────────────────────────────────────────────────
+
+    const sessionId = crypto.randomUUID();
+
+
+    // ─────────────────────────────────────────────────────────
+    // IMPORTANT:
+    //
+    // Only create the session if there is currently NO
+    // active session.
+    //
+    // This prevents two devices from logging in at the
+    // same time.
+    // ─────────────────────────────────────────────────────────
+
+    let updatedUser = null;
+
+
+    if (role === 'super_admin') {
+
+      updatedUser = await SuperAdmin.findOneAndUpdate(
+        {
+          _id: user._id,
+
+          $or: [
+            { activeSessionId: null },
+            { activeSessionId: { $exists: false } },
+          ],
+        },
+        {
+          $set: {
+            activeSessionId: sessionId,
+          },
+        },
+        {
+          new: true,
+        }
+      );
+
+    } else if (role === 'admin') {
+
+      updatedUser = await Admin.findOneAndUpdate(
+        {
+          _id: user._id,
+
+          $or: [
+            { activeSessionId: null },
+            { activeSessionId: { $exists: false } },
+          ],
+        },
+        {
+          $set: {
+            activeSessionId: sessionId,
+          },
+        },
+        {
+          new: true,
+        }
+      );
+
+    } else if (role === 'customer') {
+
+      updatedUser = await Customer.findOneAndUpdate(
+        {
+          _id: user._id,
+
+          $or: [
+            { activeSessionId: null },
+            { activeSessionId: { $exists: false } },
+          ],
+        },
+        {
+          $set: {
+            activeSessionId: sessionId,
+          },
+        },
+        {
+          new: true,
+        }
+      );
+    }
+
+
+    // ─────────────────────────────────────────────────────────
+    // ACCOUNT IS ALREADY LOGGED IN
+    // ─────────────────────────────────────────────────────────
+
+    if (!updatedUser) {
+      return res.status(409).json({
+        success: false,
+        code: 'ACCOUNT_ALREADY_LOGGED_IN',
+        message:
+          'This account is already logged in on another device or browser. Please logout from that device first.',
+      });
+    }
+
+
+    // ─────────────────────────────────────────────────────────
+    // GENERATE JWT
+    // ─────────────────────────────────────────────────────────
+
+    const token = generateToken(
+      updatedUser._id,
+      role,
+      sessionId
+    );
+
+
+    // ─────────────────────────────────────────────────────────
+    // USER RESPONSE
+    // ─────────────────────────────────────────────────────────
 
     const userResponse = {
-      id: user._id,
-      name: user.name,
-      email: user.email,
+      id: updatedUser._id,
+      name: updatedUser.name,
+      email: updatedUser.email || null,
       role,
-      isActive: user.isActive,
-      ...(role === 'admin' && {
-        shopName: user.shopName,
-        shopLogo: user.shopLogo,
-        phoneNumber: user.phoneNumber,
-        diff_24k: user.diff_24k,
-        diff_2385k: user.diff_2385k,
-      }),
-      ...(role === 'customer' && {
-        phoneNumber: user.phoneNumber,
-        whatsappNumber: user.whatsappNumber,
-        isTrusted: user.isTrusted,
-        isFlagged: user.isFlagged,
-      }),
+      isActive: updatedUser.isActive,
     };
 
-    res.status(200).json({ success: true, message: 'Login successful', token, user: userResponse });
+
+    // ─────────────────────────────────────────────────────────
+    // ADMIN DATA
+    // ─────────────────────────────────────────────────────────
+
+    if (role === 'admin') {
+      userResponse.shopName = updatedUser.shopName;
+      userResponse.shopLogo = updatedUser.shopLogo;
+      userResponse.phoneNumber = updatedUser.phoneNumber;
+      userResponse.diff_24k = updatedUser.diff_24k;
+      userResponse.diff_2385k = updatedUser.diff_2385k;
+    }
+
+
+    // ─────────────────────────────────────────────────────────
+    // CUSTOMER DATA
+    // ─────────────────────────────────────────────────────────
+
+    if (role === 'customer') {
+      userResponse.phoneNumber =
+        updatedUser.phoneNumber;
+
+      userResponse.whatsappNumber =
+        updatedUser.whatsappNumber;
+
+      userResponse.isTrusted =
+        updatedUser.isTrusted;
+
+      userResponse.isFlagged =
+        updatedUser.isFlagged;
+    }
+
+
+    // ─────────────────────────────────────────────────────────
+    // SUCCESS
+    // ─────────────────────────────────────────────────────────
+
+    return res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      token,
+      user: userResponse,
+    });
+
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+
+    console.error('Login error:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message,
+    });
   }
 };
 
@@ -240,5 +495,112 @@ export const resetPassword = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// ============================================================
+// LOGOUT CONTROLLER
+// ============================================================
+
+export const logout = async (req, res) => {
+  try {
+    // These values are added by the protect middleware
+    const userId = req.userId;
+    const role = req.role;
+    const sessionId = req.sessionId;
+
+    // ----------------------------------------------------------
+    // Validate session information
+    // ----------------------------------------------------------
+
+    if (!userId || !role || !sessionId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid session. Please login again.',
+      });
+    }
+
+    // ----------------------------------------------------------
+    // SUPER ADMIN
+    // ----------------------------------------------------------
+
+    if (role === 'super_admin') {
+      await SuperAdmin.findOneAndUpdate(
+        {
+          _id: userId,
+          activeSessionId: sessionId,
+        },
+        {
+          $unset: {
+            activeSessionId: 1
+          }
+        }
+      );
+    }
+
+    // ----------------------------------------------------------
+    // ADMIN
+    // ----------------------------------------------------------
+
+    else if (role === 'admin') {
+      await Admin.findOneAndUpdate(
+        {
+          _id: userId,
+          activeSessionId: sessionId,
+        },
+        {
+          $set: {
+            activeSessionId: null,
+          },
+        }
+      );
+    }
+
+    // ----------------------------------------------------------
+    // CUSTOMER
+    // ----------------------------------------------------------
+
+    else if (role === 'customer') {
+      await Customer.findOneAndUpdate(
+        {
+          _id: userId,
+          activeSessionId: sessionId,
+        },
+        {
+          $set: {
+            activeSessionId: null,
+          },
+        }
+      );
+    }
+
+    // ----------------------------------------------------------
+    // INVALID ROLE
+    // ----------------------------------------------------------
+
+    else {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid user role.',
+      });
+    }
+
+    // ----------------------------------------------------------
+    // SUCCESS
+    // ----------------------------------------------------------
+
+    return res.status(200).json({
+      success: true,
+      message: 'Logout successful.',
+    });
+
+  } catch (error) {
+    console.error('Logout error:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Server error during logout.',
+      error: error.message,
+    });
   }
 };
