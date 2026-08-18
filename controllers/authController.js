@@ -14,8 +14,20 @@ const generateToken = (id, role, sessionId) => {
   return jwt.sign({ id, role, sessionId }, process.env.JWT_SECRET, { expiresIn: '30d' });
 };
 
+const buildPhoneQuery = (phoneNumber) => {
+  const cleanDigits = String(phoneNumber || '').replace(/\D/g, '');
+  if (!cleanDigits) return null;
+  const last10 = cleanDigits.slice(-10);
+  if (last10.length === 10) {
+    return { phoneNumber: new RegExp(`^(\\+92|92|0)?${last10}$`) };
+  }
+  return { phoneNumber: cleanDigits };
+};
+
 const findUserByIdentifier = async (identifier) => {
   if (!identifier) return null;
+
+  const phoneQuery = buildPhoneQuery(identifier) || { phoneNumber: identifier.trim() };
 
   // ───────────────────────────────────────────────────────────
   // SUPER ADMIN
@@ -30,9 +42,7 @@ const findUserByIdentifier = async (identifier) => {
   }
 
   if (!user) {
-    user = await SuperAdmin.findOne({
-      phoneNumber: identifier.trim(),
-    });
+    user = await SuperAdmin.findOne(phoneQuery);
   }
 
   if (user) {
@@ -46,9 +56,7 @@ const findUserByIdentifier = async (identifier) => {
   // ADMIN
   // ───────────────────────────────────────────────────────────
 
-  user = await Admin.findOne({
-    phoneNumber: identifier.trim(),
-  });
+  user = await Admin.findOne(phoneQuery);
 
   if (user) {
     return {
@@ -68,9 +76,7 @@ const findUserByIdentifier = async (identifier) => {
   }
 
   if (!user) {
-    user = await Customer.findOne({
-      phoneNumber: identifier.trim(),
-    });
+    user = await Customer.findOne(phoneQuery);
   }
 
   if (user) {

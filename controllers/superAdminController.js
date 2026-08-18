@@ -564,8 +564,8 @@ export const getLivePriceStream = async (req, res) => {
   // Send immediately on connect
   await sendPrices();
 
-  // Push every 30 seconds
-  const interval = setInterval(sendPrices, 30_000);
+  // Push every 1 second (1000ms) for real-time per-second ticks
+  const interval = setInterval(sendPrices, 1_000);
 
   // Heartbeat every 20s — keeps alive through proxies/Nginx
   const heartbeat = setInterval(() => {
@@ -2072,20 +2072,40 @@ export const flagCustomerForSA = async (req, res) => {
 
 
 
+// Helper to build phone query matching any Pakistani phone format (+92, 92, 0, or 10 digits)
+const buildPhoneQuery = (phoneNumber) => {
+  const cleanDigits = String(phoneNumber || '').replace(/\D/g, '');
+  if (!cleanDigits) return null;
+  const last10 = cleanDigits.slice(-10);
+  if (last10.length === 10) {
+    return { phoneNumber: new RegExp(`^(\\+92|92|0)?${last10}$`) };
+  }
+  return { phoneNumber: cleanDigits };
+};
+
 // ── ADMIN MANAGEMENT ───────────────────────────────────────────────────────────
 export const createAdmin = async (req, res) => {
   try {
     const { name, password, shopName, phoneNumber, whatsappNumber, address, city, tolaWeight } = req.body;
 
-    // ensure phone number is unique across Admin, SuperAdmin, Customer
     const phone = String(phoneNumber || '').trim();
-    const [existsInAdmin, existsInSuperAdmin, existsInCustomer] = await Promise.all([
-      Admin.findOne({ phoneNumber: phone }),
-      SuperAdmin.findOne({ phoneNumber: phone }),
-      Customer.findOne({ phoneNumber: phone }),
-    ]);
-    if (existsInAdmin || existsInSuperAdmin || existsInCustomer) {
-      return res.status(400).json({ message: 'An account with this phone number already exists.' });
+    const phoneQuery = buildPhoneQuery(phone);
+
+    if (phoneQuery) {
+      const [existsInAdmin, existsInSuperAdmin, existsInCustomer] = await Promise.all([
+        Admin.findOne(phoneQuery),
+        SuperAdmin.findOne(phoneQuery),
+        Customer.findOne(phoneQuery),
+      ]);
+
+      if (existsInAdmin || existsInSuperAdmin) {
+        return res.status(400).json({ message: 'An account with this phone number already exists.' });
+      }
+
+      // If an existing customer account has this phone number, remove the customer entry to allow shop admin creation
+      if (existsInCustomer) {
+        await Customer.deleteOne({ _id: existsInCustomer._id });
+      }
     }
 
     const admin = await Admin.create({
@@ -2113,7 +2133,7 @@ export const createAdmin = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
- 
+
 export const getAllAdmins = async (req, res) => {
   try {
     const admins = await Admin.find()
@@ -2148,9 +2168,22 @@ export const updateAdmin = async (req, res) => {
     const admin = await Admin.findById(req.params.id);
     if (!admin) return res.status(404).json({ message: 'Admin not found.' });
 
+    if (phoneNumber !== undefined && phoneNumber !== admin.phoneNumber) {
+      const phoneQuery = buildPhoneQuery(phoneNumber);
+      if (phoneQuery) {
+        const [existsAdmin, existsSA] = await Promise.all([
+          Admin.findOne({ ...phoneQuery, _id: { $ne: admin._id } }),
+          SuperAdmin.findOne(phoneQuery),
+        ]);
+        if (existsAdmin || existsSA) {
+          return res.status(400).json({ message: 'An account with this phone number already exists.' });
+        }
+      }
+      admin.phoneNumber = phoneNumber;
+    }
+
     if (name !== undefined) admin.name = name;
     if (shopName !== undefined) admin.shopName = shopName;
-    if (phoneNumber !== undefined) admin.phoneNumber = phoneNumber;
     if (whatsappNumber !== undefined) admin.whatsappNumber = whatsappNumber;
     if (address !== undefined) admin.address = address;
     if (city !== undefined) admin.city = city;

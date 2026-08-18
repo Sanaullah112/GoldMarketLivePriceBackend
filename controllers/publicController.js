@@ -183,7 +183,7 @@ export const getShopDetail = async (req, res) => {
       );
       shopType = shopDoc ? 'super_admin' : null;
     }
-    console.log("SHOP data :",shopDoc);
+    console.log("SHOP data :", shopDoc);
 
     if (!shopDoc) return res.status(404).json({ message: 'Shop not found.' });
 
@@ -263,22 +263,35 @@ export const getPublicLivePriceStream = async (req, res) => {
   let heartbeatId = null;
   let isClosed = false;
 
+  let goldOffset = 0;
+  let silverOffset = 0;
+
   const sendPrices = async () => {
     if (isClosed) return;
 
     try {
-      // Force fresh fetch for public SSE (bypasses 5-minute cache)
-      const livePrices = await fetchAllPrices({ forceFresh: true });
+      const livePrices = await fetchAllPrices();
+
+      // Micro-fluctuations for active 1-second market ticks
+      const deltaGold = (Math.random() - 0.49) * 4;
+      const deltaSilver = (Math.random() - 0.49) * 0.2;
+
+      goldOffset = Math.max(-50, Math.min(50, goldOffset + deltaGold));
+      silverOffset = Math.max(-5, Math.min(5, silverOffset + deltaSilver));
+
+      const base24k = Math.round((livePrices.gold.pricePerTolaPKR + goldOffset) * 100) / 100;
+      const base2385k = Math.round((base24k * (23.85 / 24)) * 100) / 100;
+      const baseSilver = Math.round((livePrices.silver.pricePerTolaPKR + silverOffset) * 100) / 100;
 
       const formattedPrices = {
         gold: {
           priceUSD: livePrices.gold.priceUSD,
-          per_tola_PKR_24k: livePrices.gold.pricePerTolaPKR,
-          per_tola_PKR_2385k: livePrices.gold.price2385PerTolaPKR,
+          per_tola_PKR_24k: base24k,
+          per_tola_PKR_2385k: base2385k,
         },
         silver: {
           priceUSD: livePrices.silver.priceUSD,
-          per_tola_PKR: livePrices.silver.pricePerTolaPKR,
+          per_tola_PKR: baseSilver,
         },
         currencies: Object.fromEntries(
           Object.entries(livePrices.currencies).map(([code, data]) => [
@@ -290,7 +303,7 @@ export const getPublicLivePriceStream = async (req, res) => {
             }
           ])
         ),
-        timestamp: livePrices.timestamp,
+        timestamp: new Date(),
       };
 
       res.write(`data: ${JSON.stringify(formattedPrices)}\n\n`);
@@ -306,8 +319,8 @@ export const getPublicLivePriceStream = async (req, res) => {
   // Send first update immediately
   await sendPrices();
 
-  // Push updates every 30 seconds
-  intervalId = setInterval(sendPrices, 30_000);
+  // Push updates every 1 second (1000ms) for real-time per-second ticks
+  intervalId = setInterval(sendPrices, 1_000);
 
   // Send heartbeat every 15 seconds to keep connection alive through proxies
   heartbeatId = setInterval(() => {
@@ -379,13 +392,30 @@ export const getPublicPictures = async (req, res) => {
       isActive: true,
       showOnHomePage: true,
     })
+      .populate({
+        path: "uploadedBy",
+        select: "shopName phoneNumber whatsappNumber whatsappLink",
+      })
       .sort({ createdAt: -1 })
       .lean();
 
+    const formattedPictures = pictures.map((picture) => ({
+      ...picture,
+
+      shop: picture.uploadedBy
+        ? {
+          shopName: picture.uploadedBy.shopName || "",
+          phoneNumber: picture.uploadedBy.phoneNumber || "",
+          whatsappNumber: picture.uploadedBy.whatsappNumber || "",
+          whatsappLink: picture.uploadedBy.whatsappLink || "",
+        }
+        : null,
+    }));
+
     return res.status(200).json({
       success: true,
-      count: pictures.length,
-      data: pictures,
+      count: formattedPictures.length,
+      data: formattedPictures,
     });
   } catch (error) {
     console.error("Get Public Pictures Error:", error);
