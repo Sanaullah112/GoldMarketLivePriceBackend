@@ -265,6 +265,8 @@ export const getPublicLivePriceStream = async (req, res) => {
 
   let goldOffset = 0;
   let silverOffset = 0;
+  let goldUsdOffset = 0;
+  let silverUsdOffset = 0;
 
   const sendPrices = async () => {
     if (isClosed) return;
@@ -275,22 +277,28 @@ export const getPublicLivePriceStream = async (req, res) => {
       // Micro-fluctuations for active 1-second market ticks
       const deltaGold = (Math.random() - 0.49) * 4;
       const deltaSilver = (Math.random() - 0.49) * 0.2;
+      const deltaGoldUsd = (Math.random() - 0.49) * 0.8;
+      const deltaSilverUsd = (Math.random() - 0.49) * 0.04;
 
       goldOffset = Math.max(-50, Math.min(50, goldOffset + deltaGold));
       silverOffset = Math.max(-5, Math.min(5, silverOffset + deltaSilver));
+      goldUsdOffset = Math.max(-10, Math.min(10, goldUsdOffset + deltaGoldUsd));
+      silverUsdOffset = Math.max(-1, Math.min(1, silverUsdOffset + deltaSilverUsd));
 
       const base24k = Math.round((livePrices.gold.pricePerTolaPKR + goldOffset) * 100) / 100;
       const base2385k = Math.round((base24k * (23.85 / 24)) * 100) / 100;
       const baseSilver = Math.round((livePrices.silver.pricePerTolaPKR + silverOffset) * 100) / 100;
+      const liveGoldUsd = Math.round((livePrices.gold.priceUSD + goldUsdOffset) * 100) / 100;
+      const liveSilverUsd = Math.round((livePrices.silver.priceUSD + silverUsdOffset) * 100) / 100;
 
       const formattedPrices = {
         gold: {
-          priceUSD: livePrices.gold.priceUSD,
+          priceUSD: liveGoldUsd,
           per_tola_PKR_24k: base24k,
           per_tola_PKR_2385k: base2385k,
         },
         silver: {
-          priceUSD: livePrices.silver.priceUSD,
+          priceUSD: liveSilverUsd,
           per_tola_PKR: baseSilver,
         },
         currencies: Object.fromEntries(
